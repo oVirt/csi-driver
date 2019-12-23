@@ -1,0 +1,65 @@
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: ovirt-csi-controller
+  namespace: ovirt-csi-driver
+spec:
+  serviceName: "ovirt-csi-driver"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ovirt-csi-driver
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ovirt-csi-driver
+    spec:
+      serviceAccount: ovirt-csi-controller-sa
+      containers:
+        - name: csi-external-attacher
+          imagePullPolicy: Always
+          image: gcr.io/gke-release/csi-attacher:v0.4.1-gke.0
+          args:
+            - "--v=4"
+            - "--csi-address=/csi/csi.sock"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: csi-external-provisioner
+          imagePullPolicy: Always
+          image: gcr.io/gke-release/csi-provisioner:v0.4.1-gke.0
+          args:
+            - "--v=4"
+            # Remove when https://github.com/kubernetes-csi/external-provisioner/issues/108 is fixed
+            - "--provisioner=filestore.csi.storage.gke.io"
+            - "--csi-address=/csi/csi.sock"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: ovirt-csi-driver
+          imagePullPolicy: Always
+          image: quay.io/rgolangh/ovirt-csi-driver:latest
+          args:
+            - "--v=4"
+            - "--endpoint=unix:/csi/csi.sock"
+            - "--nodeid=$(KUBE_NODE_NAME)"
+            - "--controller=true"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: cloud-sa-volume
+              readOnly: true
+              mountPath: "/etc/cloud_sa"
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: cloud-sa-volume
+          secret:
+            secretName: ovirt-csi-driver-sa

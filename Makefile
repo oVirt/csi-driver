@@ -23,6 +23,7 @@ test:
 .PHONY: build
 build: generate
 	go build -o $(BINDIR)/ovirt-csi-operator -ldflags '-X main.version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-operator
+	go build -o $(BINDIR)/ovirt-csi-driver -ldflags '-X main.version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-driver
 
 .PHONY: generate
 #generate: $(BINDATA)
@@ -45,7 +46,7 @@ test-e2e: generate
 .PHONY: container
 # Build the docker image
 container: test
-	docker build . -t ${IMG}
+	podman build . -t ${IMG}
 
 #$(BINDATA):
 #	go build -o $(BINDATA) ./vendor/github.com/jteeuwen/go-bindata/go-bindata

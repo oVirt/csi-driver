@@ -4,6 +4,8 @@ go 1.13
 
 require (
 	cloud.google.com/go v0.33.1 // indirect
+
+	github.com/container-storage-interface/spec v1.2.0
 	github.com/emicklei/go-restful v2.8.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0 // indirect
@@ -24,6 +26,7 @@ require (
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/json-iterator/go v1.1.5 // indirect
 	github.com/jteeuwen/go-bindata v3.0.8-0.20180305030458-6025e8de665b+incompatible // indirect
+	github.com/kubernetes-csi/csi-lib-utils v0.6.1
 	github.com/mattbaird/jsonpatch v0.0.0-20171005235357-81af80346b1a // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742 // indirect
@@ -31,6 +34,7 @@ require (
 	github.com/openshift/csi-operator v0.0.0-20190909133956-cdb4f21387f3
 	github.com/openshift/library-go v0.0.0-20181119144846-b468f2b93d32
 	github.com/operator-framework/operator-sdk v0.1.1
+	github.com/ovirt/go-ovirt v4.3.4+incompatible
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
 	github.com/petar/GoLLRB v0.0.0-20130427215148-53be0d36a84c // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
@@ -39,12 +43,12 @@ require (
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1 // indirect
 	golang.org/x/crypto v0.0.0-20181112202954-3d3f9f413869 // indirect
-	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a // indirect
+	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd
 	golang.org/x/oauth2 v0.0.0-20181106182150-f42d05182288 // indirect
 	golang.org/x/sys v0.0.0-20181116161606-93218def8b18 // indirect
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
-	golang.org/x/tools v0.0.0-20181119130350-139d099f6620 // indirect
-	google.golang.org/appengine v1.3.0 // indirect
+	google.golang.org/genproto v0.0.0-20191220175831-5c49e3ecc1c1 // indirect
+	google.golang.org/grpc v1.19.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.2.1
 	k8s.io/api v0.0.0-20180712090710-2d6f90ab1293
