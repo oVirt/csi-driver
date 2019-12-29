@@ -2,14 +2,11 @@ package service
 
 import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
 	"k8s.io/klog"
 )
 
-type IdentityService struct {
-	ovirtConnection *ovirtsdk.Connection
-}
+type IdentityService struct {}
 
 
 func (i *IdentityService) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
