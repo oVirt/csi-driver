@@ -1,7 +1,7 @@
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
-  name: ovirt-csi-controller
+  name: ovirt-csi-plugin
   namespace: ovirt-csi-driver
 spec:
   serviceName: "ovirt-csi-driver"
@@ -17,6 +17,39 @@ spec:
         app: ovirt-csi-driver
     spec:
       serviceAccount: ovirt-csi-controller-sa
+      initContainers:
+        - name: prepare-ovirt-config
+          env:
+            - name: OVIRT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_url
+            - name: OVIRT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_username
+            - name: OVIRT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_password
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              cat << EOF > /tmp/config/ovirt-config.yaml
+              ovirt_url: $OVIRT_URL
+              ovirt_username: $OVIRT_USERNAME
+              ovirt_password: $OVIRT_PASSWORD
+              EOF
+          volumeMounts:
+            - name: config
+              mountPath: /tmp/config
+
       containers:
         - name: csi-external-attacher
           imagePullPolicy: Always
@@ -40,26 +73,25 @@ spec:
               mountPath: /csi
         - name: ovirt-csi-driver
           imagePullPolicy: Always
-          image: quay.io/rgolangh/ovirt-csi-driver:latest
+          image: quay.io/bennyz/ovirt-csi-driver:latest
           args:
-            - "--v=4"
             - "--endpoint=unix:/csi/csi.sock"
-            - "--nodeid=$(KUBE_NODE_NAME)"
-            - "--controller=true"
+            - "--namespace=ovirt-csi-driver"
+            - "--ovirt-conf="
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: OVIRT_CONFIG
+              value: /tmp/config/ovirt-config.yaml
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-            - name: cloud-sa-volume
-              readOnly: true
-              mountPath: "/etc/cloud_sa"
+            - name: config
+              mountPath: /tmp/config/
       volumes:
         - name: socket-dir
           emptyDir: {}
-        - name: cloud-sa-volume
-          secret:
-            secretName: ovirt-csi-driver-sa
+        - name: config
+          emptyDir: {}

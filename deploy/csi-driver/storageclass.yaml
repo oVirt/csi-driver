@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ovirt-csi-sc
+provisioner: ovirt-csi-driver
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  ovirtStoraeStorageDomain: "nfs" 
+  ovirtDiskThinProvisioning: "true"
+  
