@@ -20,7 +20,7 @@ spec:
       containers:
         - name: csi-driver-registrar
           imagePullPolicy: Always
-          image: gcr.io/gke-release/csi-driver-registrar:v0.4.1-gke.0
+          image: quay.io/k8scsi/driver-registrar:v0.3.0 
           args:
             - "--v=5"
             - "--csi-address=/csi/csi.sock"
@@ -39,7 +39,7 @@ spec:
 #          securityContext:
 #            privileged: true
           imagePullPolicy: Always
-          image: quay.io/bennyz/ovirt-csi-driver:latest
+          image: quay.io/rgolangh/ovirt-csi-driver:latest
           args:
             - "--endpoint=unix:/csi/csi.sock"
             - "--namspace=ovirt-csi-driver"

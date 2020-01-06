@@ -53,7 +53,7 @@ spec:
       containers:
         - name: csi-external-attacher
           imagePullPolicy: Always
-          image: quay.io/k8scsi/csi-attacher:v0.3.1
+          image: quay.io/k8scsi/csi-attacher:v2.0.0
           args:
             - "--v=4"
             - "--csi-address=/csi/csi.sock"
@@ -62,7 +62,7 @@ spec:
               mountPath: /csi
         - name: csi-external-provisioner
           imagePullPolicy: Always
-          image: quay.io/k8scsi/csi-provisioner:v0.3.0
+          image: quay.io/k8scsi/csi-provisioner:v1.5.0
           args:
             - "--v=4"
             - "--csi-address=/csi/csi.sock"
@@ -71,7 +71,7 @@ spec:
               mountPath: /csi
         - name: ovirt-csi-driver
           imagePullPolicy: Always
-          image: quay.io/bennyz/ovirt-csi-driver:latest
+          image: quay.io/rgolangh/ovirt-csi-driver:latest
           args:
             - "--endpoint=unix:/csi/csi.sock"
             - "--namespace=ovirt-csi-driver"
