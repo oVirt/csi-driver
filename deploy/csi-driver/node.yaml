@@ -39,12 +39,11 @@ spec:
 #          securityContext:
 #            privileged: true
           imagePullPolicy: Always
-          image: quay.io/rgolangh/ovirt-csi-driver:latest
+          image: quay.io/bennyz/ovirt-csi-driver:latest
           args:
-            - "--v=5"
             - "--endpoint=unix:/csi/csi.sock"
-            - "--nodeid=$(KUBE_NODE_NAME)"
-            - "--node=true"
+            - "--namspace=ovirt-csi-driver"
+            - "--ovirt-conf="
           env:
             - name: KUBE_NODE_NAME
               valueFrom:

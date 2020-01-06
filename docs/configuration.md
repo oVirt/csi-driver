@@ -18,7 +18,7 @@
 
 There is no default value for `-config`.
 
-`csi-operator` binary accepts the usual glog arguments:
+`csi-operator` binary accepts the usual klog arguments:
 
 ```
   -alsologtostderr

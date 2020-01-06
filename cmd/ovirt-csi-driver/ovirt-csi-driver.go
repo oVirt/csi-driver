@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/golang/glog"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"gopkg.in/yaml.v2"
 	"k8s.io/klog"
@@ -51,7 +50,7 @@ func handle() {
 	// Get a config to talk to the apiserver
 	restConfig, err := config.GetConfig()
 	if err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	opts := manager.Options{
@@ -61,7 +60,7 @@ func handle() {
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := manager.New(restConfig, opts)
 	if err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	driver := service.NewOvirtCSIDriver(ovirtConnection, mgr.GetClient())
