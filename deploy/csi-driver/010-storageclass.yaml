@@ -3,7 +3,7 @@ kind: StorageClass
 metadata:
   name: ovirt-csi-sc
 provisioner: ovirt-csi-driver
-volumeBindingMode: WaitForFirstConsumer
+volumeBindingMode: Immediate 
 parameters:
   ovirtStoraeStorageDomain: "nfs" 
   ovirtDiskThinProvisioning: "true"
