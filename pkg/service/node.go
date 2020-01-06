@@ -13,14 +13,14 @@ import (
 )
 
 type NodeService struct {
-	ovirtConnection *ovirtsdk.Connection
+	ovirtClient *OvirtClient
 }
 
 var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 }
 
-func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, error){
+func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, error) {
 	switch diskInterface {
 	case ovirtsdk.DISKINTERFACE_VIRTIO:
 		return "/dev/disk/by-id/virtio-" + id, nil
@@ -33,7 +33,7 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	// mount
 	// Get the real disk device name from device
-	send, err := n.ovirtConnection.SystemService().DisksService().DiskService(req.VolumeId).Get().Send()
+	send, err := n.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId).Get().Send()
 	if err != nil {
 		// failed fetching the disk
 		return nil, err
@@ -112,7 +112,6 @@ func (n *NodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilit
 	}
 	return &csi.NodeGetCapabilitiesResponse{Capabilities: caps}, nil
 }
-
 
 // getDeviceInfo will return the first Device which is a partition and its filesystem.
 // if the given Device disk has no partition then an empty zero valued device will return

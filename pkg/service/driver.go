@@ -1,7 +1,6 @@
 package service
 
 import (
-	ovirtsdk "github.com/ovirt/go-ovirt"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -16,17 +15,17 @@ type OvirtCSIDriver struct {
 	*IdentityService
 	*ControllerService
 	*NodeService
-	ovirtConnection *ovirtsdk.Connection
-	Client   client.Client
+	ovirtClient *OvirtClient
+	Client      client.Client
 }
 
 // NewOvirtCSIDriver creates a driver instance
-func NewOvirtCSIDriver(ovirtConnection *ovirtsdk.Connection, client client.Client) *OvirtCSIDriver {
+func NewOvirtCSIDriver(ovirtClient *OvirtClient, client client.Client) *OvirtCSIDriver {
 	d := OvirtCSIDriver{
 		IdentityService:   &IdentityService{},
-		ControllerService: &ControllerService{ovirtConnection, client},
-		NodeService:       &NodeService{ovirtConnection},
-		ovirtConnection:   ovirtConnection,
+		ControllerService: &ControllerService{ovirtClient, client},
+		NodeService:       &NodeService{ovirtClient},
+		ovirtClient:       ovirtClient,
 		Client:            client,
 	}
 	return &d
@@ -37,7 +36,7 @@ func (driver *OvirtCSIDriver) Run(endpoint string) {
 	// run the gRPC server
 	klog.Info("Setting the rpc server")
 
-    s := NewNonBlockingGRPCServer()
-    s.Start(endpoint, driver.IdentityService, driver.ControllerService, driver.NodeService)
-    s.Wait()
+	s := NewNonBlockingGRPCServer()
+	s.Start(endpoint, driver.IdentityService, driver.ControllerService, driver.NodeService)
+	s.Wait()
 }

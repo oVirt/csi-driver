@@ -11,7 +11,6 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
 )
 
 const (
@@ -21,8 +20,8 @@ const (
 )
 
 type ControllerService struct {
-	ovirtConnection *ovirtsdk.Connection
-	client   client.Client
+	ovirtClient *OvirtClient
+	client      client.Client
 }
 
 var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
@@ -32,7 +31,7 @@ var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 
 func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
-	diskByName, err := c.ovirtConnection.SystemService().DisksService().List().Search(req.Name).Send()
+	diskByName, err := c.ovirtClient.connection.SystemService().DisksService().List().Search(req.Name).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +77,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 
 func (c *ControllerService) DeleteVolume(ctx context.Context,req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
-	diskService := c.ovirtConnection.SystemService().DisksService().DiskService(req.VolumeId)
+	diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
 
 	_, err := diskService.Get().Send()
 	// if doesn't exists we're done
@@ -108,7 +107,7 @@ func (c *ControllerService) ControllerPublishVolume(
 
 	// 3. use machineId or systemUUID
 	vmId := node.Status.NodeInfo.MachineID
-	vmService := c.ovirtConnection.SystemService().VmsService().VmService(vmId)
+	vmService := c.ovirtClient.connection.SystemService().VmsService().VmService(vmId)
 	attachmentBuilder := ovirtsdk.NewDiskAttachmentBuilder().Id(req.VolumeId)
 	_, err = vmService.DiskAttachmentsService().AddProvidingDiskId().Attachment(attachmentBuilder.MustBuild()).Send()
 	if err != nil {

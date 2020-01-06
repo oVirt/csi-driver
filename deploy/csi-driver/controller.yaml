@@ -53,7 +53,7 @@ spec:
       containers:
         - name: csi-external-attacher
           imagePullPolicy: Always
-          image: gcr.io/gke-release/csi-attacher:v0.4.1-gke.0
+          image: quay.io/k8scsi/csi-attacher:v0.3.1
           args:
             - "--v=4"
             - "--csi-address=/csi/csi.sock"
@@ -62,11 +62,9 @@ spec:
               mountPath: /csi
         - name: csi-external-provisioner
           imagePullPolicy: Always
-          image: gcr.io/gke-release/csi-provisioner:v0.4.1-gke.0
+          image: quay.io/k8scsi/csi-provisioner:v0.3.0
           args:
             - "--v=4"
-            # Remove when https://github.com/kubernetes-csi/external-provisioner/issues/108 is fixed
-            - "--provisioner=filestore.csi.storage.gke.io"
             - "--csi-address=/csi/csi.sock"
           volumeMounts:
             - name: socket-dir
