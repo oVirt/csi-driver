@@ -16,15 +16,47 @@ spec:
         app: ovirt-csi-driver
     spec:
       serviceAccount: ovirt-csi-node-sa
-#      hostNetwork: true
+      initContainers:
+        - name: prepare-ovirt-config
+          env:
+            - name: OVIRT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_url
+            - name: OVIRT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_username
+            - name: OVIRT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_password
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              cat << EOF > /tmp/config/ovirt-config.yaml
+              ovirt_url: $OVIRT_URL
+              ovirt_username: $OVIRT_USERNAME
+              ovirt_password: $OVIRT_PASSWORD
+              EOF
+          volumeMounts:
+            - name: config
+              mountPath: /tmp/config
+
       containers:
         - name: csi-driver-registrar
           imagePullPolicy: Always
-          image: quay.io/k8scsi/driver-registrar:v0.3.0 
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.2.0
           args:
             - "--v=5"
             - "--csi-address=/csi/csi.sock"
-            - "--kubelet-registration-path=/var/lib/kubelet/plugins/filestore.csi.storage.gke.io/csi.sock"
+            - "--kubelet-registration-path=/var/lib/kubelet/plugins/ovirt.org/csi.sock"
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -36,25 +68,30 @@ spec:
             - name: registration-dir
               mountPath: /registration
         - name: ovirt-csi-driver
-#          securityContext:
-#            privileged: true
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
           imagePullPolicy: Always
           image: quay.io/rgolangh/ovirt-csi-driver:latest
           args:
             - "--endpoint=unix:/csi/csi.sock"
-            - "--namspace=ovirt-csi-driver"
+            - "--namespace=ovirt-csi-driver"
             - "--ovirt-conf="
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: OVIRT_CONFIG
+              value: /tmp/config/ovirt-config.yaml
           volumeMounts:
 #            - name: kubelet-dir
 #              mountPath: /var/lib/kubelet
 #              mountPropagation: "Bidirectional"
             - name: plugin-dir
               mountPath: /csi
+            - name: config
+              mountPath: /tmp/config/
       volumes:
         - name: registration-dir
           hostPath:
@@ -66,5 +103,7 @@ spec:
             type: Directory
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/filestore.csi.storage.gke.io/
+            path: /var/lib/kubelet/plugins/ovirt.org
             type: DirectoryOrCreate
+        - name: config
+          emptyDir: {}

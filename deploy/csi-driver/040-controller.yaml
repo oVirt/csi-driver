@@ -64,7 +64,7 @@ spec:
           imagePullPolicy: Always
           image: quay.io/k8scsi/csi-provisioner:v1.5.0
           args:
-            - "--v=4"
+            - "--v=9"
             - "--csi-address=/csi/csi.sock"
           volumeMounts:
             - name: socket-dir
