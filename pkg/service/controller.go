@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	ParameterStorageDomainName = "ovirtStorageDomain"
+	ParameterStorageDomainName    = "ovirtStorageDomain"
 	ParameterDiskThinProvisioning = "ovirtDiskThinProvisioning"
-	ParameterFsType = "fsType"
+	ParameterFsType               = "fsType"
 )
 
 type ControllerService struct {
@@ -30,6 +30,7 @@ var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 }
 
 func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	klog.Infof("Creating disk %s", req.Name)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
 	diskByName, err := c.ovirtClient.connection.SystemService().DisksService().List().Search(req.Name).Send()
 	if err != nil {
@@ -67,6 +68,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
+	klog.Infof("Finished creating disk with ID %s", disk.MustId())
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes: disk.MustProvisionedSize(),
@@ -75,7 +77,8 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}, nil
 }
 
-func (c *ControllerService) DeleteVolume(ctx context.Context,req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
+	klog.Infof("Removing disk %s", req.volumeId)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
 	diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
 
@@ -88,6 +91,8 @@ func (c *ControllerService) DeleteVolume(ctx context.Context,req *csi.DeleteVolu
 	if err != nil {
 		return nil, err
 	}
+
+	klog.Infof("Finished removing disk %s", req.volumeId)
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
