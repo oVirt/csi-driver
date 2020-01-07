@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	ParameterStorageDomainName    = "ovirtStorageDomain"
-	ParameterDiskThinProvisioning = "ovirtDiskThinProvisioning"
-	ParameterFsType               = "fsType"
+	ParameterStorageDomainName = "storageDomainName"
+	ParameterThinProvisioning  = "thinProvisioning"
+	ParameterFsType            = "fsType"
 )
 
 type ControllerService struct {
@@ -50,8 +50,8 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}, nil
 	}
 
-	// TODO rgolan the default incase of error would be non thin - change it?
-	thinProvisioning, _ := strconv.ParseBool(req.Parameters[ParameterDiskThinProvisioning])
+	// TODO rgolan the default in case of error would be non thin - change it?
+	thinProvisioning, _ := strconv.ParseBool(req.Parameters[ParameterThinProvisioning])
 
 	// creating the disk
 	disk, err := ovirtsdk.NewDiskBuilder().

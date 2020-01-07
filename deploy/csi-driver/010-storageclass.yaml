@@ -5,8 +5,7 @@ metadata:
 provisioner: csi.ovirt.org
 annotations:
   storageclass.kubernetes.io/is-default-class: "true"
-volumeBindingMode: Immediate 
 parameters:
-  # the name of the storage domain. "nfs" is just an example
-  ovirtStorageDomain: "nfs"
-  ovirtDiskThinProvisioning: "true"
+  # the name of the storage domain. "nfs" is just an example.
+  storageDomainName: nfs
+  thinProvisioning: true
