@@ -2,7 +2,9 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ovirt-csi-sc
-provisioner: ovirt-csi-driver
+provisioner: csi.ovirt.org
+annotations:
+  storageclass.kubernetes.io/is-default-class: "true"
 volumeBindingMode: Immediate 
 parameters:
   ovirtStoraeStorageDomain: "nfs" 

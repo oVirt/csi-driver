@@ -34,6 +34,16 @@ spec:
                 secretKeyRef:
                   name: ovirt-credentials
                   key: ovirt_password
+            - name: OVIRT_CAFILE
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_cafile
+            - name: OVIRT_INSECURE
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_insecure
           image: busybox
           command:
             - /bin/sh
@@ -44,6 +54,8 @@ spec:
               ovirt_url: $OVIRT_URL
               ovirt_username: $OVIRT_USERNAME
               ovirt_password: $OVIRT_PASSWORD
+              ovirt_cafile: $OVIRT_CAFILE
+              ovirt_insecure: $OVIRT_INSECURE
               EOF
           volumeMounts:
             - name: config
