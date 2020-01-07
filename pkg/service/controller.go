@@ -38,7 +38,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	// if exists we're done
-	if disks, ok := diskByName.Disks(); ok {
+	if disks, ok := diskByName.Disks(); ok && len(disks.Slice()) == 1{
 		disk := disks.Slice()[0]
 		return &csi.CreateVolumeResponse{
 			Volume: &csi.Volume{
