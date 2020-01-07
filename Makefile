@@ -24,8 +24,10 @@ build:
 verify:
 	hack/verify-all.sh
 
-.PHONY: container
-# Build the docker image
+.PHONY: image
+image:
+	podman build . -f Dockerfile
+
 container: test
 	podman build . -t ${IMG}
 
