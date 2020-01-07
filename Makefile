@@ -1,5 +1,5 @@
 # Image URL to use all building/pushing image targets
-IMG ?= csi-operator:latest
+IMG ?= ovirt-csi-driver:latest
 
 BINDIR=bin
 #BINDATA=$(BINDIR)/go-bindata
@@ -26,10 +26,7 @@ verify:
 
 .PHONY: image
 image:
-	podman build . -f Dockerfile
-
-container: test
-	podman build . -t ${IMG}
+	podman build . -f Dockerfile -t quay.io/rgolangh/${IMG}
 
 #$(BINDATA):
 #	go build -o $(BINDATA) ./vendor/github.com/jteeuwen/go-bindata/go-bindata
