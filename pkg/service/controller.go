@@ -8,7 +8,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	apicorev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -108,31 +107,44 @@ func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 // ControllerPublishVolume takes a volume, which is an oVirt disk, and attaches it to a node, which is an oVirt VM.
 func (c *ControllerService) ControllerPublishVolume(
 	ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	// get the vm ID by the node name
-	// 1. get the kuberetes api client
 
-	// 2. fetch the node object by node it
-	var node apicorev1.Node
-	key := client.ObjectKey{Namespace: "", Name: req.NodeId}
-	err := c.client.Get(ctx, key, &node)
+	klog.Infof("Attaching Disk %s to VM %s", req.VolumeId, req.NodeId)
+	vmService := c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId)
+
+	attachmentBuilder := ovirtsdk.NewDiskAttachmentBuilder().
+		DiskBuilder(ovirtsdk.NewDiskBuilder().Id(req.VolumeId)).
+		Interface(ovirtsdk.DISKINTERFACE_VIRTIO_SCSI).
+		Bootable(false).
+		Active(true)
+
+	_, err := vmService.
+		DiskAttachmentsService().
+		Add().
+		Attachment(attachmentBuilder.MustBuild()).
+		Send()
 	if err != nil {
 		return nil, err
 	}
-
-	// 3. use machineId or systemUUID
-	vmId := node.Status.NodeInfo.MachineID
-	vmService := c.ovirtClient.connection.SystemService().VmsService().VmService(vmId)
-	attachmentBuilder := ovirtsdk.NewDiskAttachmentBuilder().Id(req.VolumeId)
-	_, err = vmService.DiskAttachmentsService().AddProvidingDiskId().Attachment(attachmentBuilder.MustBuild()).Send()
-	if err != nil {
-		return nil, err
-	}
-	klog.Infof("Attached Disk ID %v to VM ID %s", req.VolumeId, vmId)
+	klog.Infof("Attached Disk %v to VM %s", req.VolumeId, req.NodeId)
 	return &csi.ControllerPublishVolumeResponse{}, nil
 }
 
-func (c *ControllerService) ControllerUnpublishVolume(context.Context, *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+	klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
+	attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
+	if err != nil {
+		return nil, err
+	}
+	_, err = c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId).
+		DiskAttachmentsService().
+		AttachmentService(attachment.MustId()).
+		Remove().
+		Send()
+
+	if err != nil {
+		return nil, err
+	}
+	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
 func (c *ControllerService) ValidateVolumeCapabilities(context.Context, *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {

@@ -10,6 +10,8 @@ require (
 	google.golang.org/grpc v1.26.0
 	gopkg.in/yaml.v2 v2.2.7
 	k8s.io/api v0.17.0
+	k8s.io/apimachinery v0.17.1-beta.0
+	k8s.io/client-go v0.17.0
 	k8s.io/klog v1.0.0
 	sigs.k8s.io/controller-runtime v0.4.0
 )

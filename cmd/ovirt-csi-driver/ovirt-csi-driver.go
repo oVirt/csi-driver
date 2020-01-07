@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -17,6 +19,7 @@ var (
 	endpoint            = flag.String("endpoint", "unix:/csi/csi.sock", "CSI endpoint")
 	namespace           = flag.String("namespace", "", "Namespace to run the controllers on")
 	ovirtConfigFilePath = flag.String("ovirt-conf", "", "Path to ovirt api config")
+	nodeName            = flag.String("node-name", "", "The node name - the node this pods runs on")
 )
 
 func init() {
@@ -58,7 +61,23 @@ func handle() {
 		klog.Fatal(err)
 	}
 
-	driver := service.NewOvirtCSIDriver(ovirtClient, mgr.GetClient())
+	// get the node onject by name and pass the VM ID because it is the node
+	// id from the storage perspective. It will be used for attaching disks
+	var nodeId string
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	if *nodeName != "" {
+		get, err := clientSet.CoreV1().Nodes().Get(*nodeName, metav1.GetOptions{})
+		if err != nil {
+			klog.Fatal(err)
+		}
+		nodeId = get.Status.NodeInfo.SystemUUID
+	}
+
+	driver := service.NewOvirtCSIDriver(ovirtClient, mgr.GetClient(), nodeId)
 
 	driver.Run(*endpoint)
 }

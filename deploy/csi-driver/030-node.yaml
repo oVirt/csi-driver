@@ -88,7 +88,7 @@ spec:
           args:
             - "--endpoint=unix:/csi/csi.sock"
             - "--namespace=ovirt-csi-driver"
-            - "--ovirt-conf="
+            - "--node-name=$(KUBE_NODE_NAME)"
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -107,7 +107,7 @@ spec:
       volumes:
         - name: registration-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/
+            path: /var/lib/kubelet/plugins_registry/
             type: Directory
         - name: kubelet-dir
           hostPath:

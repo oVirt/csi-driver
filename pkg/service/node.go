@@ -10,9 +10,11 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
+	"k8s.io/klog"
 )
 
 type NodeService struct {
+	nodeId string
 	ovirtClient *OvirtClient
 }
 
@@ -33,12 +35,13 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	// mount
 	// Get the real disk device name from device
-	send, err := n.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId).Get().Send()
+	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
+	attachment, err := diskAttachmentByVmAndDisk(n.ovirtClient.connection, n.nodeId, req.VolumeId)
 	if err != nil {
-		// failed fetching the disk
 		return nil, err
 	}
-	device, err := devFromVolumeId(req.VolumeId, send.MustDisk().MustInterface())
+
+	device, err := devFromVolumeId(req.VolumeId, attachment.MustInterface())
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +96,7 @@ func (n *NodeService) NodeExpandVolume(context.Context, *csi.NodeExpandVolumeReq
 }
 
 func (n *NodeService) NodeGetInfo(context.Context, *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	panic("implement me")
+	return &csi.NodeGetInfoResponse{NodeId: n.nodeId}, nil
 }
 
 func (n *NodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
