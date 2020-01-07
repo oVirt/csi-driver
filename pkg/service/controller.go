@@ -78,7 +78,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 }
 
 func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
-	klog.Infof("Removing disk %s", req.volumeId)
+	klog.Infof("Removing disk %s", req.VolumeId)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
 	diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
 
@@ -92,7 +92,7 @@ func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 		return nil, err
 	}
 
-	klog.Infof("Finished removing disk %s", req.volumeId)
+	klog.Infof("Finished removing disk %s", req.VolumeId)
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
