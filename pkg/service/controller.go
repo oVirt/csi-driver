@@ -61,18 +61,27 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		ProvisionedSize(req.CapacityRange.GetRequiredBytes()).
 		ReadOnly(false).
 		Format(ovirtsdk.DISKFORMAT_COW).
-		Sparse(thinProvisioning).Build()
+		Sparse(thinProvisioning).
+		Build()
 
 	if err != nil {
 		// failed to construct the disk
 		return nil, err
 	}
 
-	klog.Infof("Finished creating disk with ID %s", disk.MustId())
+	createDisk, err := c.ovirtClient.connection.SystemService().DisksService().
+		Add().
+		Disk(disk).
+		Send()
+	if err != nil {
+		// failed to create the disk
+		klog.Errorf("Failed creating disk %s", req.Name)
+		return nil, err
+	}
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			CapacityBytes: disk.MustProvisionedSize(),
-			VolumeId:      disk.MustId(),
+			CapacityBytes: createDisk.MustDisk().MustProvisionedSize(),
+			VolumeId:      createDisk.MustDisk().MustId(),
 		},
 	}, nil
 }

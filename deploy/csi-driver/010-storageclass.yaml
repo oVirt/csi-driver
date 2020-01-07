@@ -7,6 +7,6 @@ annotations:
   storageclass.kubernetes.io/is-default-class: "true"
 volumeBindingMode: Immediate 
 parameters:
-  ovirtStoraeStorageDomain: "nfs" 
+  # the name of the storage domain. "nfs" is just an example
+  ovirtStorageDomain: "nfs"
   ovirtDiskThinProvisioning: "true"
-  
