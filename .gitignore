@@ -13,5 +13,5 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-#Ignore IDE project folder
+#Ignore JetBrains IDEs project folder
 .idea
