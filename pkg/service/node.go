@@ -34,7 +34,6 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 }
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	// mount
 	// Get the real disk device name from device
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
 	attachment, err := diskAttachmentByVmAndDisk(n.ovirtClient.connection, n.nodeId, req.VolumeId)
@@ -52,15 +51,17 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	if err != nil {
 		return nil, err
 	}
-	//TODO get the desired fstype from req.PublishRequest[]
+	fsType := req.VolumeCapability.GetMount().FsType
 	if filesystem == "" {
 		// no filesystem - create it
-		makeFSErr := makeFS(device, "ext4")
+		makeFSErr := makeFS(device, fsType)
 		if makeFSErr != nil {
 			return nil, makeFSErr
 		}
 	}
-	return &csi.NodeStageVolumeResponse{}, nil
+
+	err = unix.Mount(device, req.StagingTargetPath, fsType, 0, "")
+	return &csi.NodeStageVolumeResponse{}, err
 }
 
 func (n *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
