@@ -10,6 +10,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
+	"golang.org/x/sys/unix"
 	"k8s.io/klog"
 )
 
@@ -68,10 +69,7 @@ func (n *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return &csi.NodeUnstageVolumeResponse{}, nil
 	}
 
-	cmd := exec.Command("umount", req.StagingTargetPath)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	err := unix.Unmount(req.StagingTargetPath, 0)
 	if err != nil {
 		return nil, err
 	}
