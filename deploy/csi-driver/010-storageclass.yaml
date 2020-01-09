@@ -7,5 +7,5 @@ annotations:
   storageclass.kubernetes.io/is-default-class: "true"
 parameters:
   # the name of the storage domain. "nfs" is just an example.
-  storageDomainName: nfs
-  thinProvisioning: true
+  storageDomainName: "nfs"
+  thinProvisioning: "true"
