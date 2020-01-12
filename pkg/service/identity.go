@@ -6,8 +6,7 @@ import (
 	"k8s.io/klog"
 )
 
-type IdentityService struct {}
-
+type IdentityService struct{}
 
 func (i *IdentityService) GetPluginInfo(context.Context, *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	return &csi.GetPluginInfoResponse{
@@ -33,10 +32,3 @@ func (i *IdentityService) Probe(ctx context.Context, request *csi.ProbeRequest) 
 	klog.V(4).Infof("probe called with args: %#v", request)
 	return &csi.ProbeResponse{}, nil
 }
-
-
-
-
-
-
-

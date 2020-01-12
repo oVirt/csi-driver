@@ -15,7 +15,7 @@ type OvirtCSIDriver struct {
 	*IdentityService
 	*ControllerService
 	*NodeService
-	nodeId string
+	nodeId      string
 	ovirtClient *OvirtClient
 	Client      client.Client
 }
