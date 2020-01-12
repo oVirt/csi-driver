@@ -41,7 +41,17 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		return nil, err
 	}
 
-	device, err := devFromVolumeId(req.VolumeId, attachment.MustInterface())
+	klog.Infof("Extracting pvc volume name %s", req.VolumeId, req)
+	disk, _ := n.ovirtClient.connection.FollowLink(attachment.MustDisk())
+	diskID := ""
+	if disk, ok := disk.(*ovirtsdk.Disk); !ok {
+		return nil, errors.New("Couldn't retrieve disk from attachemnt")
+	} else {
+		diskID = disk.MustId()[:20]
+		klog.Infof("Extracted pvc volume name %s", diskID)
+	}
+
+	device, err := devFromVolumeId(diskID, attachment.MustInterface())
 	if err != nil {
 		return nil, err
 	}
