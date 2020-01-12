@@ -75,7 +75,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           volumeMounts:
-            - name: plugin-dir
+            - name: socket-dir
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
@@ -100,10 +100,18 @@ spec:
 #            - name: kubelet-dir
 #              mountPath: /var/lib/kubelet
 #              mountPropagation: "Bidirectional"
-            - name: plugin-dir
+            - name: socket-dir
               mountPath: /csi
             - name: config
               mountPath: /tmp/config/
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins
+              mountPropagation: Bidirectional
+            - name: host-dev
+              mountPath: /dev
+            - name: mountpoint-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: Bidirectional
       volumes:
         - name: registration-dir
           hostPath:
@@ -115,7 +123,18 @@ spec:
             type: Directory
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/ovirt.org
+            path: /var/lib/kubelet/plugins
+            type: Directory
+        - name: socket-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/ovirt.org/
             type: DirectoryOrCreate
+        - name: host-dev
+          hostPath:
+            path: /dev
         - name: config
           emptyDir: {}
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: DirectoryOrCreate
