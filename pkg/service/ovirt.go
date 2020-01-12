@@ -33,7 +33,7 @@ func newOvirtConnection() (*ovirtsdk.Connection, error) {
 		Password(ovirtConfig.Password).
 		CAFile(ovirtConfig.CAFile).
 		Insecure(ovirtConfig.Insecure).
-	Build()
+		Build()
 	if err != nil {
 		return nil, err
 	}

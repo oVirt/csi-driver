@@ -8,7 +8,7 @@ import (
 
 func diskAttachmentByVmAndDisk(connection *ovirtsdk.Connection, vmId string, diskId string) (*ovirtsdk.DiskAttachment, error) {
 	vmService := connection.SystemService().VmsService().VmService(vmId)
-	attachments , err := vmService.DiskAttachmentsService().List().Send()
+	attachments, err := vmService.DiskAttachmentsService().List().Send()
 	if err != nil {
 		return nil, err
 	}

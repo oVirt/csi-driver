@@ -15,7 +15,7 @@ import (
 )
 
 type NodeService struct {
-	nodeId string
+	nodeId      string
 	ovirtClient *OvirtClient
 }
 
