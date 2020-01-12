@@ -4,18 +4,21 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
-	"golang.org/x/sys/unix"
 	"k8s.io/klog"
 )
 
 type NodeService struct {
-	nodeId string
+	nodeId      string
 	ovirtClient *OvirtClient
 }
 
@@ -34,27 +37,8 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 }
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	// Get the real disk device name from device
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
-	attachment, err := diskAttachmentByVmAndDisk(n.ovirtClient.connection, n.nodeId, req.VolumeId)
-	if err != nil {
-		return nil, err
-	}
-
-	klog.Infof("Extracting pvc volume name %s", req.VolumeId, req)
-	disk, _ := n.ovirtClient.connection.FollowLink(attachment.MustDisk())
-	diskID := ""
-	if disk, ok := disk.(*ovirtsdk.Disk); !ok {
-		return nil, errors.New("Couldn't retrieve disk from attachemnt")
-	} else {
-		diskID = disk.MustId()[:20]
-		klog.Infof("Extracted pvc volume name %s", diskID)
-	}
-
-	device, err := devFromVolumeId(diskID, attachment.MustInterface())
-	if err != nil {
-		return nil, err
-	}
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
 
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
@@ -64,36 +48,52 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	fsType := req.VolumeCapability.GetMount().FsType
 	if filesystem == "" {
 		// no filesystem - create it
+		klog.Infof("Creating FS %s on device %s", fsType, device)
 		makeFSErr := makeFS(device, fsType)
 		if makeFSErr != nil {
 			return nil, makeFSErr
 		}
 	}
 
-	err = unix.Mount(device, req.StagingTargetPath, fsType, 0, "")
-	return &csi.NodeStageVolumeResponse{}, err
+	return &csi.NodeStageVolumeResponse{}, nil
 }
 
 func (n *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
-	if !isMountpoint(req.StagingTargetPath) {
-		// nothing to do, return.
-		return &csi.NodeUnstageVolumeResponse{}, nil
+	return &csi.NodeUnstageVolumeResponse{}, nil
+}
+
+func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
+
+	targetPath := req.GetTargetPath()
+	err = os.MkdirAll(targetPath, 0750)
+	if err != nil {
+		return nil, errors.New(err.Error())
 	}
 
-	err := unix.Unmount(req.StagingTargetPath, 0)
+	fsType := req.VolumeCapability.GetMount().FsType
+	klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
+		device, targetPath, fsType)
+	mounter := mount.New("")
+	err = mounter.Mount(device, targetPath, fsType, []string{})
 	if err != nil {
+		klog.Errorf("Failed mounting %v", err)
 		return nil, err
 	}
-	return &csi.NodeUnstageVolumeResponse{}, nil
 
+	return &csi.NodePublishVolumeResponse{}, nil
 }
 
-func (n *NodeService) NodePublishVolume(context.Context, *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	panic("implement me")
-}
+func (n *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	mounter := mount.New("")
+	klog.Infof("Unmounting %s", req.GetTargetPath())
+	err := mounter.Unmount(req.GetTargetPath())
+	if err != nil {
+		klog.Infof("Failed to unmount")
+		return nil, err
+	}
 
-func (n *NodeService) NodeUnpublishVolume(context.Context, *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	panic("implement me")
+	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
 func (n *NodeService) NodeGetVolumeStats(context.Context, *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
@@ -125,10 +125,38 @@ func (n *NodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilit
 	return &csi.NodeGetCapabilitiesResponse{Capabilities: caps}, nil
 }
 
+func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection) (string, error) {
+	attachment, err := diskAttachmentByVmAndDisk(conn, nodeID, volumeID)
+	if err != nil {
+		return "", err
+	}
+
+	klog.Infof("Extracting pvc volume name %s", volumeID)
+	disk, _ := conn.FollowLink(attachment.MustDisk())
+	diskID := ""
+	if disk, ok := disk.(*ovirtsdk.Disk); !ok {
+		return "", errors.New("Couldn't retrieve disk from attachemnt")
+	} else {
+		diskID = disk.MustId()[:20]
+		klog.Infof("Extracted pvc volume name %s", diskID)
+	}
+
+	device, err := devFromVolumeId(diskID, attachment.MustInterface())
+	if err != nil {
+		return "", err
+	}
+
+	return device, nil
+}
+
 // getDeviceInfo will return the first Device which is a partition and its filesystem.
 // if the given Device disk has no partition then an empty zero valued device will return
 func getDeviceInfo(device string) (string, error) {
-	cmd := exec.Command("lsblk", "-nro", "FSTYPE", device)
+	devicePath, err := filepath.EvalSymlinks(device)
+	if err != nil {
+		return "", errors.New(err.Error())
+	}
+	cmd := exec.Command("lsblk", "-nro", "FSTYPE", devicePath)
 	out, err := cmd.Output()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
@@ -146,16 +174,19 @@ func getDeviceInfo(device string) (string, error) {
 func makeFS(device string, fsType string) error {
 	// caution, use -F to force creating the filesystem if it doesn't exit. May not be portable for fs other
 	// than ext family
+	klog.Infof("Mounting device %s, with FS %s", device, fsType)
 	var force string
 	if strings.HasPrefix(fsType, "ext") {
 		force = "-F"
 	}
+
 	cmd := exec.Command("mkfs", force, "-t", fsType, device)
 	err := cmd.Run()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
 		return errors.New(err.Error() + " mkfs failed with " + string(exitError.Error()))
 	}
+
 	return nil
 }
 
