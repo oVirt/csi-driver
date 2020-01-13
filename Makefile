@@ -29,5 +29,11 @@ verify:
 image:
 	podman build . -f Dockerfile -t ${IMG}
 
+.PHONY: vendor
+vendor:
+	go mod tidy
+	go mod vendor
+	go mod verify
+
 #$(BINDATA):
 #	go build -o $(BINDATA) ./vendor/github.com/jteeuwen/go-bindata/go-bindata
