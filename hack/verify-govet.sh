@@ -17,26 +17,7 @@ set -o nounset
 set -o pipefail
 
 PROJECT_ROOT=$(dirname "${BASH_SOURCE}")/..
-source "${PROJECT_ROOT}/hack/util.sh"
 
 cd "${PROJECT_ROOT}"
 
-FAILURE=false
-test_dirs=$(find_files | cut -d '/' -f 1-2 | sort -u)
-for test_dir in $test_dirs
-do
-  if ! go vet -composites=false $test_dir
-  then
-    FAILURE=true
-  fi
-done
-
-# We don't want to exit on the first failure of go vet, so just keep track of
-# whether a failure occurred or not.
-if $FAILURE
-then
-  echo "FAILURE: go vet failed!"
-  exit 1
-else
-  exit 0
-fi
+go vet ./...
