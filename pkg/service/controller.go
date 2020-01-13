@@ -15,9 +15,9 @@ import (
 const (
 	ParameterStorageDomainName = "storageDomainName"
 	ParameterThinProvisioning  = "thinProvisioning"
-	ParameterFsType            = "fsType"
 )
 
+//ControllerService implements the controller interface
 type ControllerService struct {
 	ovirtClient *OvirtClient
 	client      client.Client
@@ -28,6 +28,7 @@ var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME, // attach/detach
 }
 
+//CreateVolume creates the disk for the request, unattached from any VM
 func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("Creating disk %s", req.Name)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
@@ -85,6 +86,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}, nil
 }
 
+//DeleteVolume removed the disk from oVirt
 func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.Infof("Removing disk %s", req.VolumeId)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
@@ -129,6 +131,7 @@ func (c *ControllerService) ControllerPublishVolume(
 	return &csi.ControllerPublishVolumeResponse{}, nil
 }
 
+//ControllerUnpublishVolume detaches the disk from the VM.
 func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
 	attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
@@ -147,34 +150,42 @@ func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
+//ValidateVolumeCapabilities
 func (c *ControllerService) ValidateVolumeCapabilities(context.Context, *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//ListVolumes
 func (c *ControllerService) ListVolumes(context.Context, *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//GetCapacity
 func (c *ControllerService) GetCapacity(context.Context, *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//CreateSnapshot
 func (c *ControllerService) CreateSnapshot(context.Context, *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//DeleteSnapshot
 func (c *ControllerService) DeleteSnapshot(context.Context, *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//ListSnapshots
 func (c *ControllerService) ListSnapshots(context.Context, *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//ControllerExpandVolume
 func (c *ControllerService) ControllerExpandVolume(context.Context, *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
 
+//ControllerGetCapabilities
 func (c *ControllerService) ControllerGetCapabilities(context.Context, *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	caps := make([]*csi.ControllerServiceCapability, 0, len(ControllerCaps))
 	for _, capability := range ControllerCaps {
