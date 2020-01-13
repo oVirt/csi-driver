@@ -22,7 +22,8 @@ build:
 
 .PHONY: verify
 verify:
-	hack/verify-all.sh
+	hack/verify-gofmt.sh
+	hack/verify-govet.sh
 
 .PHONY: image
 image:
