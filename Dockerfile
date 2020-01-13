@@ -5,7 +5,7 @@ WORKDIR /src/ovirt-csi-driver
 COPY . .
 RUN make build
 
-FROM fedora:30
+FROM fedora:31
 
 RUN dnf install -y e2fsprogs
 COPY --from=builder src/ovirt-csi-driver/bin/ovirt-csi-driver .
