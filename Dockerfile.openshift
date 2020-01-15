@@ -7,6 +7,6 @@ RUN make build
 FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
 
 RUN yum install -y e2fsprogs
-COPY --from=builder src/ovirt-csi-driver/bin/ovirt-csi-driver .
+COPY --from=builder /src/ovirt-csi-driver/bin/ovirt-csi-driver .
 
 ENTRYPOINT ["./ovirt-csi-driver"]
