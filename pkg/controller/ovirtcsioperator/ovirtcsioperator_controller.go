@@ -4,8 +4,6 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -13,7 +11,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -22,6 +19,7 @@ import (
 
 	ovirtv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/assets"
+	"github.com/ovirt/csi-driver/pkg/config"
 )
 
 var log = logf.Log.WithName("controller_ovirtcsioperator")
@@ -40,8 +38,8 @@ func Add(mgr manager.Manager) error {
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileOvirtCSIOperator{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
+		client:   mgr.GetClient(),
+		scheme:   mgr.GetScheme(),
 		recorder: mgr.GetEventRecorderFor("ovirt-csi-driver-operartor"),
 	}
 }
@@ -80,9 +78,10 @@ var _ reconcile.Reconciler = &ReconcileOvirtCSIOperator{}
 type ReconcileOvirtCSIOperator struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client   client.Client
+	scheme   *runtime.Scheme
 	recorder record.EventRecorder
+	config   *config.Config
 }
 
 // Reconcile reads that state of the cluster for a OvirtCSIOperator object and makes changes based on the state read
@@ -112,43 +111,35 @@ func (r *ReconcileOvirtCSIOperator) Reconcile(request reconcile.Request) (reconc
 	// Define a new Pod object
 	manifests, err := loadCSIDriverManifests(instance)
 	if err != nil {
-		return , err
+		return reconcile.Result{}, err
 	}
-
 
 	for _, manifest := range manifests {
 		// check if the object exists
 		switch manifest.GetObjectKind().GroupVersionKind().Kind {
 		case "StorageClass":
-			r.syncStorageClass()
+			r.syncStorageClass(instance, &instance.Spec.StorageClassTemplates[0])
 
 		case "CSIDriver":
-			r.syncStorageClass()
+			r.syncStorageClass(instance, &instance.Spec.StorageClassTemplates[0])
 
-		case: "StatefulSet":
-			r.syncDaemonSet()
+		case "StatefulSet":
+			r.syncDaemonSet(instance, r.generateServiceAccount(instance), false)
 
 		case "CredentialsRequest":
-			r.syncStorageClass()
+			r.syncStorageClass(instance, &instance.Spec.StorageClassTemplates[0])
 
 		default:
 			// nothing
 		}
-
-		err = r.client.Get(context.TODO(), types.NamespacedName{Name: manifest.Name, Namespace: manifest.Namespace}, manifest)
-
-	}
-	// Set OvirtCSIOperator instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
 	}
 
 	// Check if this Pod already exists
 	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: found.Name, Namespace: found.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
+		reqLogger.Info("Creating a new Pod", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+		err = r.client.Create(context.TODO(), found)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -184,5 +175,3 @@ func loadCSIDriverManifests(cr *ovirtv1alpha1.OvirtCSIOperator) ([]runtime.Objec
 	}
 	return retVal, nil
 }
-
-

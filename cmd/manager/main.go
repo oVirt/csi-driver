@@ -9,12 +9,12 @@ import (
 	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	"go.etcd.io/etcd/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
 	"github.com/ovirt/csi-driver/pkg/apis"
 	"github.com/ovirt/csi-driver/pkg/controller"
-	"github.com/ovirt/csi-driver/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"

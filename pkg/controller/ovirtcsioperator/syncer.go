@@ -1,27 +1,33 @@
 package ovirtcsioperator
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
+	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors
-	"pkg/operator/v1alpha1helpers"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/resourceapply"
+)
+
+const (
+	finalizerName = "csidriver.storage.openshift.io"
+	apiTimeout    = time.Minute
 )
 
 func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1.OvirtCSIOperator) error {
@@ -48,7 +54,7 @@ func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1
 				r.recorder.Event(newInstance, corev1.EventTypeWarning, "SyncError", e.Error())
 			}
 		}
-		}
+	}
 
 	err := r.syncStatus(instance, newInstance)
 	if err != nil {
@@ -134,7 +140,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 
 	deployment, err := r.syncDeployment(cr, serviceAccount, generationChanged)
 	if err != nil {
-		err := fmt.Errorf("error syncing Deployment for CSIDriverDeploymutilerrors "k8s.io/apimachinery/pkg/util/errorsent %s/%s: %s", cr.Namespace, cr.Name, err)
+		err := fmt.Errorf("error syncing Deployment for CSIDriverDeploymutilerrors %s/%s: %s", cr.Namespace, cr.Name, err)
 		errs = append(errs, err)
 	}
 	if deployment != nil {
@@ -265,12 +271,10 @@ func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperat
 
 func (r *ReconcileOvirtCSIOperator) removeUnexpectedStorageClasses(cr *v1alpha1.OvirtCSIOperator, expectedClasses sets.String) []error {
 	list := &storagev1.StorageClassList{}
-	opts := client.ListOptions{
-		LabelSelector: r.getOwnerLabelSelector(cr),
-	}
+	opts := client.ListOptions{}
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	err := r.client.List(ctx, &opts, list)
+	err := r.client.List(ctx, list, &opts)
 	if err != nil {
 		err := fmt.Errorf("cannot list StorageClasses for CSIDriverDeployment %s/%s: %s", cr.Namespace, cr.Name, err)
 		return []error{err}
@@ -446,14 +450,6 @@ func (r *ReconcileOvirtCSIOperator) getExpectedGeneration(cr *v1alpha1.OvirtCSIO
 		return child.LastGeneration
 	}
 	return -1
-}
-
-func (r *ReconcileOvirtCSIOperator) getOwnerLabelSelector(i *v1alpha1.OvirtCSIOperator) labels.Selector {
-	ls := labels.Set{
-		OwnerLabelNamespace: i.Namespace,
-		OwnerLabelName:      i.Name,
-	}
-	return labels.SelectorFromSet(ls)
 }
 
 func (r *ReconcileOvirtCSIOperator) apiContext() (context.Context, context.CancelFunc) {

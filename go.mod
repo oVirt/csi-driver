@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/onsi/ginkgo v1.10.2
@@ -14,6 +15,7 @@ require (
 	github.com/operator-framework/operator-sdk v0.14.0
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
 	github.com/spf13/pflag v1.0.5
+	go.etcd.io/etcd v3.3.18+incompatible
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 	google.golang.org/grpc v1.26.0
 	gopkg.in/yaml.v2 v2.2.7

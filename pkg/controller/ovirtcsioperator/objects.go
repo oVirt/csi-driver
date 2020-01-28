@@ -4,9 +4,9 @@ import (
 	"path"
 	"regexp"
 
-	csidriverv1alpha1 "github.com/openshift/csi-operator/pkg/apis/csidriver/v1alpha1"
+	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,7 +51,6 @@ func (r *ReconcileOvirtCSIOperator) generateServiceAccount(cr *v1alpha1.OvirtCSI
 			Name:      scName,
 		},
 	}
-	r.addOwnerLabels(&sc.ObjectMeta, cr)
 	r.addOwner(&sc.ObjectMeta, cr)
 
 	return sc
@@ -78,7 +77,6 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.Ovir
 			Name:     r.config.ClusterRoleName,
 		},
 	}
-	r.addOwnerLabels(&crb.ObjectMeta, cr)
 	return crb
 }
 
@@ -104,7 +102,6 @@ func (r *ReconcileOvirtCSIOperator) generateLeaderElectionRoleBinding(cr *v1alph
 			Name:     r.config.LeaderElectionClusterRoleName,
 		},
 	}
-	r.addOwnerLabels(&rb.ObjectMeta, cr)
 	r.addOwner(&rb.ObjectMeta, cr)
 	return rb
 }
@@ -268,7 +265,6 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet(cr *v1alpha1.OvirtCSIOpera
 			},
 		},
 	}
-	r.addOwnerLabels(&ds.ObjectMeta, cr)
 	r.addOwner(&ds.ObjectMeta, cr)
 
 	return ds
@@ -410,7 +406,6 @@ func (r *ReconcileOvirtCSIOperator) generateDeployment(cr *v1alpha1.OvirtCSIOper
 			},
 		},
 	}
-	r.addOwnerLabels(&deployment.ObjectMeta, cr)
 	r.addOwner(&deployment.ObjectMeta, cr)
 
 	return deployment
@@ -429,7 +424,6 @@ func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOp
 		AllowedTopologies:    template.AllowedTopologies,
 	}
 	template.ObjectMeta.DeepCopyInto(&expectedSC.ObjectMeta)
-	r.addOwnerLabels(&expectedSC.ObjectMeta, cr)
 	if template.Default != nil && *template.Default == true {
 		expectedSC.Annotations = map[string]string{
 			defaultStorageClassAnnotation: "true",
@@ -448,25 +442,6 @@ func sanitizeDriverName(driver string) string {
 	re := regexp.MustCompile("[^a-zA-Z0-9-.]")
 	name := re.ReplaceAllString(driver, "-")
 	return name
-}
-
-// a CSIDriverDeployment (as OwnerReference does not work there) and may be used to limit Watch() in future.
-func (r *ReconcileOvirtCSIOperator) addOwnerLabels(meta *metav1.ObjectMeta, cr *v1alpha1.OvirtCSIOperator) bool {
-	changed := false
-	if meta.Labels == nil {
-		meta.Labels = map[string]string{}
-		changed = true
-	}
-	if v, exists := meta.Labels[OwnerLabelNamespace]; !exists || v != cr.Namespace {
-		meta.Labels[OwnerLabelNamespace] = cr.Namespace
-		changed = true
-	}
-	if v, exists := meta.Labels[OwnerLabelName]; !exists || v != cr.Name {
-		meta.Labels[OwnerLabelName] = cr.Name
-		changed = true
-	}
-
-	return changed
 }
 
 func (r *ReconcileOvirtCSIOperator) addOwner(meta *metav1.ObjectMeta, cr *v1alpha1.OvirtCSIOperator) {
