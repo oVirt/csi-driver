@@ -1,13 +1,7 @@
 package config
 
 import (
-	"io/ioutil"
-
-	"github.com/golang/glog"
-
-	csi "github.com/openshift/csi-operator/pkg/apis/csidriver/v1alpha1"
-	"github.com/openshift/csi-operator/pkg/generated"
-	"gopkg.in/yaml.v2"
+	csi "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 )
 
 // Config is configuration of the CSI Driver operator.
@@ -37,61 +31,4 @@ type Config struct {
 
 	// Path to /var/lib/kubelet.
 	KubeletRootDir string `yaml:"kubeletRootDir,omitempty"`
-}
-
-// DefaultConfig returns the default configuration of the operator.
-func DefaultConfig() *Config {
-	cfgBytes := generated.MustAsset("default-config.yaml")
-	cfg := &Config{}
-	err := yaml.Unmarshal(cfgBytes, cfg)
-	if err != nil {
-		panic(err)
-	}
-	return cfg
-}
-
-// LoadConfig loads operator config from a file. It fills all omitted fields with default values.
-func LoadConfig(path string) (*Config, error) {
-	glog.V(2).Infof("Loading config file %s", path)
-
-	cfgBytes, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	cfg := &Config{}
-	err = yaml.UnmarshalStrict(cfgBytes, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	// Supply missing values from the default config
-	defaultCfg := DefaultConfig()
-	if cfg.DefaultImages.DriverRegistrarImage == nil {
-		cfg.DefaultImages.DriverRegistrarImage = defaultCfg.DefaultImages.DriverRegistrarImage
-	}
-	if cfg.DefaultImages.AttacherImage == nil {
-		cfg.DefaultImages.AttacherImage = defaultCfg.DefaultImages.AttacherImage
-	}
-	if cfg.DefaultImages.ProvisionerImage == nil {
-		cfg.DefaultImages.ProvisionerImage = defaultCfg.DefaultImages.ProvisionerImage
-	}
-	if cfg.DefaultImages.LivenessProbeImage == nil {
-		cfg.DefaultImages.LivenessProbeImage = defaultCfg.DefaultImages.LivenessProbeImage
-	}
-	if cfg.ClusterRoleName == "" {
-		cfg.ClusterRoleName = defaultCfg.ClusterRoleName
-	}
-	if cfg.LeaderElectionClusterRoleName == "" {
-		cfg.LeaderElectionClusterRoleName = defaultCfg.LeaderElectionClusterRoleName
-	}
-	if cfg.InfrastructureNodeSelector == nil {
-		cfg.InfrastructureNodeSelector = defaultCfg.InfrastructureNodeSelector
-	}
-	if cfg.DeploymentReplicas == 0 {
-		cfg.DeploymentReplicas = defaultCfg.DeploymentReplicas
-	}
-	if cfg.KubeletRootDir == "" {
-		cfg.KubeletRootDir = defaultCfg.KubeletRootDir
-	}
-	return cfg, nil
 }

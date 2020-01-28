@@ -4,13 +4,11 @@ go 1.13
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/onsi/ginkgo v1.10.2
 	github.com/onsi/gomega v1.7.0
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
-	github.com/openshift/csi-operator v0.0.0-20190909133956-cdb4f21387f3
 	github.com/openshift/library-go v0.0.0-20200120084036-bb27e57e2f2b
 	github.com/operator-framework/operator-sdk v0.14.0
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
