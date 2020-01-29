@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang/glog"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
-	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -20,6 +19,8 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/resourceapply"
