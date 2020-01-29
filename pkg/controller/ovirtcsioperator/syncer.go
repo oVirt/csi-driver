@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	finalizerName = "csidriver.storage.openshift.io"
+	finalizerName = "ovirt.csidriver.storage.openshift.io"
 	apiTimeout    = time.Minute
 )
 
