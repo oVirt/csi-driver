@@ -350,7 +350,7 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 	if statefulSet != nil {
 		if statefulSet.Status.ReadyReplicas != replicas {
 			available = false
-			msgs = append(msgs, fmt.Sprintf("StatefulSet %q with CSI driver needs %infos but has %infos ready.", statefulSet.Name, statefulSet.Status.ReadyReplicas))
+			msgs = append(msgs, fmt.Sprintf("StatefulSet %q with CSI driver needs %v but has %v ready.", statefulSet.Name, statefulSet.Status.ReadyReplicas, statefulSet.Status.Replicas))
 		}
 	} else {
 		unknown = true
@@ -358,7 +358,7 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 	if ds != nil {
 		if ds.Status.NumberUnavailable > 0 {
 			available = false
-			msgs = append(msgs, fmt.Sprintf("DaemonSet %q with CSI driver has %infos not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
+			msgs = append(msgs, fmt.Sprintf("DaemonSet %q with CSI driver has %v not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
 		}
 	} else {
 		unknown = true
