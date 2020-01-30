@@ -81,6 +81,16 @@ func ApplyServiceAccount(ctx context.Context, client client.Client, required *co
 	return existing, true, nil
 }
 
+// ApplyClusterRole creates cluster role
+func ApplyClusterRole(ctx context.Context, client client.Client, cr *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
+	err := client.Create(ctx, cr)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return cr, true, nil
+}
+
 // ApplyClusterRoleBinding merges objectmeta, requires subjects and role refs
 func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing := &rbacv1.ClusterRoleBinding{}
@@ -168,7 +178,7 @@ func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv
 	modified := boolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	// there was no change to metadata, the generation was right, and we weren't asked for force the deployment
-	if !*modified && existing.ObjectMeta.Generation == expectedGeneration{
+	if !*modified && existing.ObjectMeta.Generation == expectedGeneration {
 		return existing, false, nil
 	}
 

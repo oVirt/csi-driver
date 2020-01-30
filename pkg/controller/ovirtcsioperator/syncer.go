@@ -29,7 +29,6 @@ import (
 const (
 	finalizerName = "ovirt.csidriver.storage.openshift.io"
 	apiTimeout    = time.Minute
-
 )
 
 var (
@@ -45,9 +44,8 @@ var (
 
 type clusterRoleBindingInfo struct {
 	serviceAccount string
-	roleRefName string
+	roleRefName    string
 }
-
 
 func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1.OvirtCSIOperator) error {
 	var errs []error
@@ -127,15 +125,19 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 		return cr, []error{err}
 	}
 
-	err =r.syncCSIDriver(cr)
+	err = r.syncCSIDriver(cr)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	err =r.syncStorageClass(cr)
+	err = r.syncStorageClass(cr)
 	if err != nil {
 		errs = append(errs, err)
 	}
-	err =r.syncRBAC(cr)
+	err = r.syncClusterRoles(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err = r.syncRBAC(cr)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -149,10 +151,6 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 	}
 
 	var children []openshiftapi.GenerationHistory
-
-	// There is no easy way how to detect change of DriverControllerTemplate or DriverPerNodeTemplate.
-	// Assume that every change of CR generation changed the templates.
-	generationChanged := cr.Status.ObservedGeneration == nil || cr.Generation != *cr.Status.ObservedGeneration
 
 	if ds != nil {
 		// Store generation of the DaemonSet so we can check for DaemonSet.Spec changes.
@@ -204,6 +202,27 @@ func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOper
 	return nil
 }
 
+func (r *ReconcileOvirtCSIOperator) syncClusterRoles(cr *v1alpha1.OvirtCSIOperator) error {
+	ctx, cancel := r.apiContext()
+	defer cancel()
+
+	_, _, err := resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleController())
+	if err != nil {
+		return err
+	}
+
+	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleNode())
+	if err != nil {
+		return err
+	}
+	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleLeaderElection())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) error {
 	err := r.syncServiceAccount(cr)
 	if err != nil {
@@ -228,16 +247,6 @@ func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSI
 	_, _, err := resourceapply.ApplyClusterRoleBinding(ctx, r.client, crb)
 	return err
 }
-func (r *ReconcileOvirtCSIOperator) syncClusterRole(cr *v1alpha1.OvirtCSIOperator, serviceAccount *corev1.ServiceAccount) error {
-	glog.V(4).Infof("Syncing ClusterRole")
-
-	crb := r.generateClusterRole(cr, serviceAccount)
-
-	ctx, cancel := r.apiContext()
-	defer cancel()
-	_, _, err := resourceapply.ApplyClusterRoleBinding(ctx, r.client, crb)
-	return err
-}
 
 func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount *corev1.ServiceAccount) error {
 	glog.V(4).Infof("Syncing leader election RoleBinding")
@@ -252,13 +261,13 @@ func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.O
 
 func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.DaemonSet, error) {
 	glog.V(4).Infof("Syncing DaemonSet")
-	requiredDS := r.generateDaemonSet(cr, sa)
+	requiredDS := r.generateDaemonSet()
 	gvk := appsv1.SchemeGroupVersion.WithKind("DaemonSet")
 	generation := r.getExpectedGeneration(cr, requiredDS, gvk)
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	ds, _, err := resourceapply.ApplyDaemonSet(ctx, r.client, requiredDS, generation)
+	ds, _, err := resourceapply.ApplyDaemonSet(ctx, r.client, requiredDS, generation, false)
 	if err != nil {
 		return requiredDS, err
 	}
@@ -488,8 +497,4 @@ func (r *ReconcileOvirtCSIOperator) getExpectedGeneration(cr *v1alpha1.OvirtCSIO
 
 func (r *ReconcileOvirtCSIOperator) apiContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), apiTimeout)
-}
-
-func boolPtr(val bool) *bool {
-	return &val
 }

@@ -104,8 +104,6 @@ func (r *ReconcileOvirtCSIOperator) Reconcile(request reconcile.Request) (reconc
 		return reconcile.Result{}, err
 	}
 
-
-		// TODO check reconcile errors and report
+	// TODO check reconcile errors and report
 	return reconcile.Result{}, r.handleCSIDriverDeployment(instance)
 }
-
