@@ -29,7 +29,25 @@ import (
 const (
 	finalizerName = "ovirt.csidriver.storage.openshift.io"
 	apiTimeout    = time.Minute
+
 )
+
+var (
+	infos = []clusterRoleBindingInfo{
+		{"ovirt-csi-controller-sa", "csi-external-provisioner"},
+		{"ovirt-csi-controller-sa", "csi-external-attacher"},
+		{"ovirt-csi-controller-sa", "ovirt-csi-controller-cr"},
+		{"ovirt-csi-controller-sa", "openshift:csi-driver-controller-leader-election"},
+		{"ovirt-csi-node-sa", "ovirt-csi-node-cr"},
+		{"ovirt-csi-node-sa", "openshift:csi-driver-controller-leader-election"},
+	}
+)
+
+type clusterRoleBindingInfo struct {
+	serviceAccount string
+	roleRefName string
+}
+
 
 func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1.OvirtCSIOperator) error {
 	var errs []error
@@ -73,97 +91,6 @@ func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1
 	return nil
 }
 
-// syncCSIDriverDeployment checks one CSIDriverDeployment and ensures that all "children" objects are either
-// created or updated.
-func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, []error) {
-	glog.V(2).Infof("=== Syncing CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
-	var errs []error
-
-	cr, err := r.syncFinalizer(cr)
-	if err != nil {
-		// Return now, we can't create subsequent objects without the finalizer because could miss event
-		// with CSIDriverDeployment deletion and we could not delete non-namespaced objects.
-		return cr, []error{err}
-	}
-
-	serviceAccount, err := r.syncServiceAccount(cr)
-	if err != nil {
-		err := fmt.Errorf("error syncing ServiceAccount for CSIDriverDeployment %s/%s: %s", cr.Namespace, cr.Name, err)
-		errs = append(errs, err)
-	}
-
-	err = r.syncClusterRoleBinding(cr, serviceAccount)
-	if err != nil {
-		err := fmt.Errorf("error syncing ClusterRoleBinding for CSIDriverDeployment %s/%s: %s", cr.Namespace, cr.Name, err)
-		errs = append(errs, err)
-	}
-
-	err = r.syncLeaderElectionRoleBinding(cr, serviceAccount)
-	if err != nil {
-		err := fmt.Errorf("error syncing RoleBinding for CSIDriverDeployment %s/%s: %s", cr.Namespace, cr.Name, err)
-		errs = append(errs, err)
-	}
-
-	expectedStorageClassNames := sets.NewString()
-	for i := range cr.Spec.StorageClassTemplates {
-		className := cr.Spec.StorageClassTemplates[i].Name
-		expectedStorageClassNames.Insert(className)
-		err = r.syncStorageClass(cr, &cr.Spec.StorageClassTemplates[i])
-		if err != nil {
-			err := fmt.Errorf("error syncing StorageClass %s for CSIDriverDeployment %s/%s: %s", className, cr.Namespace, cr.Name, err)
-			errs = append(errs, err)
-		}
-	}
-	removeErrs := r.removeUnexpectedStorageClasses(cr, expectedStorageClassNames)
-	errs = append(errs, removeErrs...)
-
-	var children []openshiftapi.GenerationHistory
-
-	// There is no easy way how to detect change of DriverControllerTemplate or DriverPerNodeTemplate.
-	// Assume that every change of CR generation changed the templates.
-	generationChanged := cr.Status.ObservedGeneration == nil || cr.Generation != *cr.Status.ObservedGeneration
-
-	ds, err := r.syncDaemonSet(cr, serviceAccount, generationChanged)
-	if err != nil {
-		err := fmt.Errorf("error syncing DaemonSet for CSIDriverDeployment %s/%s: %s", cr.Namespace, cr.Name, err)
-		errs = append(errs, err)
-	}
-	if ds != nil {
-		// Store generation of the DaemonSet so we can check for DaemonSet.Spec changes.
-		children = append(children, openshiftapi.GenerationHistory{
-			Group:          appsv1.GroupName,
-			Resource:       "DaemonSet",
-			Namespace:      ds.Namespace,
-			Name:           ds.Name,
-			LastGeneration: ds.Generation,
-		})
-	}
-
-	deployment, err := r.syncDeployment(cr, serviceAccount, generationChanged)
-	if err != nil {
-		err := fmt.Errorf("error syncing Deployment for CSIDriverDeploymutilerrors %s/%s: %s", cr.Namespace, cr.Name, err)
-		errs = append(errs, err)
-	}
-	if deployment != nil {
-		// Store generation of the Deployment so we can check for DaemonSet.Spec changes.
-		children = append(children, openshiftapi.GenerationHistory{
-			Group:          appsv1.GroupName,
-			Resource:       "Deployment",
-			Namespace:      deployment.Namespace,
-			Name:           deployment.Name,
-			LastGeneration: deployment.Generation,
-		})
-	}
-
-	cr.Status.Children = children
-	if len(errs) == 0 {
-		cr.Status.ObservedGeneration = &cr.Generation
-	}
-	r.syncConditions(cr, deployment, ds, errs)
-
-	return cr, errs
-}
-
 func (r *ReconcileOvirtCSIOperator) syncFinalizer(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, error) {
 	glog.V(4).Infof("Syncing CSIDriverDeployment.Finalizers")
 
@@ -187,25 +114,124 @@ func (r *ReconcileOvirtCSIOperator) syncFinalizer(cr *v1alpha1.OvirtCSIOperator)
 	return newCR, nil
 }
 
-func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOperator) (*corev1.ServiceAccount, error) {
+// syncCSIDriverDeployment checks one CSIDriverDeployment and ensures that all "children" objects are either
+// created or updated.
+func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, []error) {
+	glog.V(2).Infof("=== Syncing CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
+	var errs []error
+
+	cr, err := r.syncFinalizer(cr)
+	if err != nil {
+		// Return now, we can't create subsequent objects without the finalizer because could miss event
+		// with CSIDriverDeployment deletion and we could not delete non-namespaced objects.
+		return cr, []error{err}
+	}
+
+	err =r.syncCSIDriver(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err =r.syncStorageClass(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err =r.syncRBAC(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	ds, err := r.syncDaemonSet(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	statefulSet, err := r.syncStatefulSet(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	var children []openshiftapi.GenerationHistory
+
+	// There is no easy way how to detect change of DriverControllerTemplate or DriverPerNodeTemplate.
+	// Assume that every change of CR generation changed the templates.
+	generationChanged := cr.Status.ObservedGeneration == nil || cr.Generation != *cr.Status.ObservedGeneration
+
+	if ds != nil {
+		// Store generation of the DaemonSet so we can check for DaemonSet.Spec changes.
+		children = append(children, openshiftapi.GenerationHistory{
+			Group:          appsv1.GroupName,
+			Resource:       "DaemonSet",
+			Namespace:      ds.Namespace,
+			Name:           ds.Name,
+			LastGeneration: ds.Generation,
+		})
+	}
+
+	if statefulSet != nil {
+		// Store generation of the Deployment so we can check for DaemonSet.Spec changes.
+		children = append(children, openshiftapi.GenerationHistory{
+			Group:          appsv1.GroupName,
+			Resource:       "Deployment",
+			Namespace:      statefulSet.Namespace,
+			Name:           statefulSet.Name,
+			LastGeneration: statefulSet.Generation,
+		})
+	}
+
+	cr.Status.Children = children
+	if len(errs) == 0 {
+		cr.Status.ObservedGeneration = &cr.Generation
+	}
+	r.syncConditions(cr, statefulSet, ds, errs)
+
+	return cr, errs
+}
+
+func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOperator) error {
 	glog.V(4).Infof("Syncing ServiceAccount")
 
-	sc := r.generateServiceAccount(cr)
+	controllerAccount := r.generateServiceAccount("ovirt-csi-controller-sa")
+	nodeAccount := r.generateServiceAccount("ovirt-csi-node-sa")
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	newSC, _, err := resourceapply.ApplyServiceAccount(ctx, r.client, sc)
+	_, _, err := resourceapply.ApplyServiceAccount(ctx, r.client, controllerAccount)
 	if err != nil {
-		// Return the SC even on error, lot of subsequent children depend on it.
-		return sc, err
+		return err
 	}
-	return newSC, nil
+	_, _, err = resourceapply.ApplyServiceAccount(ctx, r.client, nodeAccount)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount *corev1.ServiceAccount) error {
+func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) error {
+	err := r.syncServiceAccount(cr)
+	if err != nil {
+		return err
+	}
+	for _, bindingInfo := range infos {
+		err := r.syncClusterRoleBinding(cr, bindingInfo.serviceAccount, bindingInfo.roleRefName)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount string, roleName string) error {
 	glog.V(4).Infof("Syncing ClusterRoleBinding")
 
-	crb := r.generateClusterRoleBinding(cr, serviceAccount)
+	crb := r.generateClusterRoleBinding(cr, serviceAccount, roleName)
+
+	ctx, cancel := r.apiContext()
+	defer cancel()
+	_, _, err := resourceapply.ApplyClusterRoleBinding(ctx, r.client, crb)
+	return err
+}
+func (r *ReconcileOvirtCSIOperator) syncClusterRole(cr *v1alpha1.OvirtCSIOperator, serviceAccount *corev1.ServiceAccount) error {
+	glog.V(4).Infof("Syncing ClusterRole")
+
+	crb := r.generateClusterRole(cr, serviceAccount)
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
@@ -224,7 +250,7 @@ func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.O
 	return err
 }
 
-func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator, sa *corev1.ServiceAccount, templateChanged bool) (*appsv1.DaemonSet, error) {
+func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.DaemonSet, error) {
 	glog.V(4).Infof("Syncing DaemonSet")
 	requiredDS := r.generateDaemonSet(cr, sa)
 	gvk := appsv1.SchemeGroupVersion.WithKind("DaemonSet")
@@ -232,37 +258,43 @@ func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator,
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	ds, _, err := resourceapply.ApplyDaemonSet(ctx, r.client, requiredDS, generation, templateChanged)
+	ds, _, err := resourceapply.ApplyDaemonSet(ctx, r.client, requiredDS, generation)
 	if err != nil {
 		return requiredDS, err
 	}
 	return ds, nil
 }
 
-func (r *ReconcileOvirtCSIOperator) syncDeployment(cr *v1alpha1.OvirtCSIOperator, sa *corev1.ServiceAccount, templateChanged bool) (*appsv1.Deployment, error) {
-	glog.V(4).Infof("Syncing Deployment")
-	if cr.Spec.DriverControllerTemplate == nil {
-		// TODO: delete existing deployment!
-		return nil, nil
-	}
+func (r *ReconcileOvirtCSIOperator) syncStatefulSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.StatefulSet, error) {
+	glog.V(4).Infof("Syncing StatefulSet")
 
-	requiredDeployment := r.generateDeployment(cr, sa)
-	gvk := appsv1.SchemeGroupVersion.WithKind("Deployment")
-	generation := r.getExpectedGeneration(cr, requiredDeployment, gvk)
+	required := r.generateStatefulSet()
+	gvk := appsv1.SchemeGroupVersion.WithKind("StatefulSet")
+	generation := r.getExpectedGeneration(cr, required, gvk)
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	deployment, _, err := resourceapply.ApplyDeployment(ctx, r.client, requiredDeployment, generation, templateChanged)
+	statefulSet, _, err := resourceapply.ApplyStatefulSet(ctx, r.client, required, generation)
 	if err != nil {
-		return requiredDeployment, err
+		return required, err
 	}
-	return deployment, nil
+	return statefulSet, nil
 }
 
-func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperator, template *v1alpha1.StorageClassTemplate) error {
-	glog.V(4).Infof("Syncing StorageClass %s", template.Name)
+func (r *ReconcileOvirtCSIOperator) syncCSIDriver(cr *v1alpha1.OvirtCSIOperator) error {
+	glog.V(4).Info("Syncing CSIDriver")
 
-	sc := r.generateStorageClass(cr, template)
+	sc := r.generateCSIDriver(cr)
+	ctx, cancel := r.apiContext()
+	defer cancel()
+	_, _, err := resourceapply.ApplyCSIDriver(ctx, r.client, sc)
+
+	return err
+}
+func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperator) error {
+	glog.V(4).Infof("Syncing StorageClass")
+
+	sc := r.generateStorageClass(cr)
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	_, _, err := resourceapply.ApplyStorageClass(ctx, r.client, sc)
@@ -298,18 +330,18 @@ func (r *ReconcileOvirtCSIOperator) removeUnexpectedStorageClasses(cr *v1alpha1.
 	return errs
 }
 
-func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOperator, deployment *appsv1.Deployment, ds *appsv1.DaemonSet, errs []error) {
+func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOperator, statefulSet *appsv1.StatefulSet, ds *appsv1.DaemonSet, errs []error) {
 	// OperatorStatusTypeAvailable condition: true if both Deployment and DaemonSet are fully deployed.
 	availableCondition := openshiftapi.OperatorCondition{
 		Type: openshiftapi.OperatorStatusTypeAvailable,
 	}
 	available := true
 	unknown := false
-	msgs := []string{}
-	if deployment != nil {
-		if deployment.Status.UnavailableReplicas > 0 {
+	var msgs []string
+	if statefulSet != nil {
+		if statefulSet.Status.ReadyReplicas != replicas {
 			available = false
-			msgs = append(msgs, fmt.Sprintf("Deployment %q with CSI driver has %d not ready pod(s).", deployment.Name, deployment.Status.UnavailableReplicas))
+			msgs = append(msgs, fmt.Sprintf("StatefulSet %q with CSI driver needs %infos but has %infos ready.", statefulSet.Name, statefulSet.Status.ReadyReplicas))
 		}
 	} else {
 		unknown = true
@@ -317,7 +349,7 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 	if ds != nil {
 		if ds.Status.NumberUnavailable > 0 {
 			available = false
-			msgs = append(msgs, fmt.Sprintf("DaemonSet %q with CSI driver has %d not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
+			msgs = append(msgs, fmt.Sprintf("DaemonSet %q with CSI driver has %infos not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
 		}
 	} else {
 		unknown = true
@@ -408,18 +440,19 @@ func (r *ReconcileOvirtCSIOperator) cleanupFinalizer(cr *v1alpha1.OvirtCSIOperat
 }
 
 func (r *ReconcileOvirtCSIOperator) cleanupClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator) error {
-	sa := r.generateServiceAccount(cr)
-	crb := r.generateClusterRoleBinding(cr, sa)
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	err := r.client.Delete(ctx, crb)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil
+	for _, bindingInfo := range infos {
+		crb := r.generateClusterRoleBinding(cr, bindingInfo.serviceAccount, bindingInfo.roleRefName)
+		err := r.client.Delete(ctx, crb)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return nil
+			}
+			return err
 		}
-		return err
+		glog.V(4).Infof("Deleted ClusterRoleBinding %s", crb.Name)
 	}
-	glog.V(4).Infof("Deleted ClusterRoleBinding %s", crb.Name)
 	return nil
 }
 
@@ -455,4 +488,8 @@ func (r *ReconcileOvirtCSIOperator) getExpectedGeneration(cr *v1alpha1.OvirtCSIO
 
 func (r *ReconcileOvirtCSIOperator) apiContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), apiTimeout)
+}
+
+func boolPtr(val bool) *bool {
+	return &val
 }

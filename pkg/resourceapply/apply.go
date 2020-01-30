@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -17,6 +18,37 @@ import (
 
 func boolPtr(val bool) *bool {
 	return &val
+}
+
+// ApplyCSIDriver merges objectmeta, tries to write everything else.
+func ApplyCSIDriver(ctx context.Context, client client.Client, required *storagev1beta1.CSIDriver) (*storagev1beta1.CSIDriver, bool, error) {
+	existing := &storagev1beta1.CSIDriver{}
+
+	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	if err != nil && apierrors.IsNotFound(err) {
+		err := client.Create(ctx, required)
+		if err != nil {
+			return nil, false, err
+		}
+		glog.V(2).Infof("Created CSIDriver %s/%s", required.Namespace, required.Name)
+		return required, true, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	modified := boolPtr(false)
+	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	if !*modified {
+		return existing, false, nil
+	}
+
+	err = client.Update(ctx, existing)
+	if err != nil {
+		return nil, false, err
+	}
+	glog.V(2).Infof("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
+	return existing, true, nil
 }
 
 // ApplyServiceAccount merges objectmeta, tries to write everything else.
@@ -117,16 +149,16 @@ func ApplyRoleBinding(ctx context.Context, client client.Client, required *rbacv
 	return existing, true, nil
 }
 
-// ApplyDeployment merges objectmeta and requires matching generation. It returns the final Object, whether any change as made, and an error
-func ApplyDeployment(ctx context.Context, client client.Client, required *appsv1.Deployment, expectedGeneration int64, templateChanged bool) (*appsv1.Deployment, bool, error) {
-	existing := &appsv1.Deployment{}
+// ApplyStatefulSet merges objectmeta and requires matching generation. It returns the final Object, whether any change as made, and an error
+func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv1.StatefulSet, expectedGeneration int64) (*appsv1.StatefulSet, bool, error) {
+	existing := &appsv1.StatefulSet{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
 	if err != nil && apierrors.IsNotFound(err) {
 		err := client.Create(ctx, required)
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created Deployment %s/%s", required.Namespace, required.Name)
+		glog.V(2).Infof("Created StatefulSet %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -136,7 +168,7 @@ func ApplyDeployment(ctx context.Context, client client.Client, required *appsv1
 	modified := boolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	// there was no change to metadata, the generation was right, and we weren't asked for force the deployment
-	if !*modified && existing.ObjectMeta.Generation == expectedGeneration && !templateChanged {
+	if !*modified && existing.ObjectMeta.Generation == expectedGeneration{
 		return existing, false, nil
 	}
 
@@ -147,7 +179,7 @@ func ApplyDeployment(ctx context.Context, client client.Client, required *appsv1
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated Deployment %s/%s", required.Namespace, required.Name)
+	glog.V(2).Infof("Updated StatefulSet %s/%s", required.Namespace, required.Name)
 	return toWrite, true, nil
 }
 

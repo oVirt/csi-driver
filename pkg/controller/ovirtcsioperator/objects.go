@@ -4,13 +4,15 @@ import (
 	"path"
 	"regexp"
 
-	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 )
@@ -31,34 +33,46 @@ const (
 	livenessprobeDefaultTimeout = int32(30)
 
 	// Name of volume with CSI driver socket
-	driverSocketVolume = "csi-driver"
+	driverSocketVolume = "socket-dir"
 
 	// Path where driverSocketVolume is mounted into all sidecar container
-	driverSocketVolumeMountPath = "/csi"
+	socketDir = "/csi"
 
+	// The socket file
+	socketFile = "csi.sock"
+
+	driverName = "csi.ovirt.org"
+
+	configVolumeName = "config"
+
+	configVolumePath = "/tmp/config"
 	// Name of volume with /var/lib/kubelet
 	kubeletRootVolumeName = "kubelet-root"
+
+	namespace = "openshift-ovirt-infra"
+
+
 )
 
+var (
+	replicas = int32(1)
+	reclaimPolicy = v1.PersistentVolumeReclaimDelete
+	allowVolumeExpansion = false
+)
 // generateServiceAccount prepares a ServiceAccount that will be used by all pods (controller + daemon set) with
 // CSI drivers and its sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateServiceAccount(cr *v1alpha1.OvirtCSIOperator) *v1.ServiceAccount {
-	scName := cr.Name
-
-	sc := &v1.ServiceAccount{
+func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string) *v1.ServiceAccount {
+	return &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: cr.Namespace,
-			Name:      scName,
+			Namespace: namespace,
+			Name:      name,
 		},
 	}
-	r.addOwner(&sc.ObjectMeta, cr)
-
-	return sc
 }
 
 // generateClusterRoleBinding prepares a ClusterRoleBinding that gives a ServiceAccount privileges needed by
 // sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount *v1.ServiceAccount) *rbacv1.ClusterRoleBinding {
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount string, roleName string) *rbacv1.ClusterRoleBinding {
 	crbName := r.uniqueGlobalName(cr)
 	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -67,14 +81,14 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.Ovir
 		Subjects: []rbacv1.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      serviceAccount.Name,
-				Namespace: serviceAccount.Namespace,
+				Name:      serviceAccount,
+				Namespace: namespace,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     r.config.ClusterRoleName,
+			Name:     roleName,
 		},
 	}
 	return crb
@@ -135,7 +149,7 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet(cr *v1alpha1.OvirtCSIOpera
 	csiDriverSocketDirectory := path.Dir(csiDriverSocketPath)
 
 	// Path to the CSI driver socket in the driver registrar container
-	registrarSocketDirectory := driverSocketVolumeMountPath
+	registrarSocketDirectory := socketDir
 	registrarSocketPath := path.Join(registrarSocketDirectory, csiDriverSocketFileName)
 
 	// Path to the CSI driver socket from kubelet point of view
@@ -192,7 +206,7 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet(cr *v1alpha1.OvirtCSIOpera
 	}
 	podSpec.Spec.Containers = append(podSpec.Spec.Containers, registrar)
 
-	probeSocketPath := path.Join(driverSocketVolumeMountPath, csiDriverSocketFileName)
+	probeSocketPath := path.Join(socketDir, csiDriverSocketFileName)
 	r.addLivenessProbe(cr, podSpec, probeSocketPath)
 
 	// Add volumes
@@ -270,103 +284,165 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet(cr *v1alpha1.OvirtCSIOpera
 	return ds
 }
 
-// generateDeployment prepares a Deployment with CSI driver and attacher and provisioner sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateDeployment(cr *v1alpha1.OvirtCSIOperator, serviceAccount *v1.ServiceAccount) *appsv1.Deployment {
-	dName := cr.Name + "-controller"
-
+// generateStatefulSet prepares a Deployment with CSI driver and attacher and provisioner sidecar containers.
+func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 	labels := map[string]string{
-		deploymentLabel: dName,
+		deploymentLabel: "",
 	}
 
-	// Prepare the pod template
-	podSpec := cr.Spec.DriverControllerTemplate.DeepCopy()
-	if podSpec.Labels == nil {
-		podSpec.Labels = labels
-	} else {
-		for k, v := range labels {
-			podSpec.Labels[k] = v
-		}
+	var containers []v1.Container
+
+	initContainers := []v1.Container{
+		{
+			Name: "prepare-ovirt-config",
+			Env: []v1.EnvVar{
+				{
+					Name: "OVIRT_URL",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							Key: "ovirt_url",
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: "ovirt-credentials",
+							},
+						},
+					},
+				},
+				{
+					Name: "OVIRT_USERNAME",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							Key: "ovirt_username",
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: "ovirt-credentials",
+							},
+						},
+					},
+				},
+				{
+					Name: "OVIRT_PASSWORD",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							Key: "ovirt_password",
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: "ovirt-credentials",
+							},
+						},
+					},
+				},
+				{
+					Name: "OVIRT_CAFILE",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							Key: "ovirt_cafile",
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: "ovirt-credentials",
+							},
+						},
+					},
+				},
+				{
+					Name: "OVIRT_INSECURE",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							Key: "ovirt_insecure",
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: "ovirt-credentials",
+							},
+						},
+					},
+				},
+			},
+			Image: "busybox",
+			Command: []string{
+				"/bin/sh",
+				"-c",
+				` #!/bin/sh
+				cat << EOF > /tmp/config/ovirt-config.yaml
+				ovirt_url: $OVIRT_URL
+				ovirt_username: $OVIRT_USERNAME
+				ovirt_password: $OVIRT_PASSWORD
+				ovirt_cafile: $OVIRT_CAFILE
+				ovirt_insecure: $OVIRT_INSECURE
+				EOF`,
+			},
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      configVolumeName,
+					MountPath: configVolumePath,
+				},
+			},
+		},
 	}
 
-	if podSpec.Spec.ServiceAccountName == "" {
-		podSpec.Spec.ServiceAccountName = serviceAccount.Name
-	}
+	sidecarSocketPath := path.Join(socketDir, socketFile)
 
-	// Add sidecars
-
-	// Path to the CSI driver socket in the driver container
-	csiDriverSocketPath := cr.Spec.DriverSocket
-	csiDriverSocketFileName := path.Base(csiDriverSocketPath)
-	csiDriverSocketDirectory := path.Dir(csiDriverSocketPath)
-
-	// Path to the CSI driver socket in the sidecar containers
-	sidecarSocketDirectory := driverSocketVolumeMountPath
-	sidecarSocketPath := path.Join(sidecarSocketDirectory, csiDriverSocketFileName)
-
-	provisionerImage := *r.config.DefaultImages.ProvisionerImage
-	if cr.Spec.ContainerImages != nil && cr.Spec.ContainerImages.ProvisionerImage != nil {
-		provisionerImage = *cr.Spec.ContainerImages.ProvisionerImage
-	}
-	provisioner := v1.Container{
+	containers = append(containers, v1.Container{
 		Name:  "csi-provisioner",
-		Image: provisionerImage,
+		Image: "quay.io/k8scsi/csi-provisioner:v1.5.0",
 		Args: []string{
 			"--v=5",
-			"--csi-address=$(ADDRESS)",
-			"--provisioner=" + cr.Spec.DriverName,
-			// TODO: add leader election parameters
+			"--csi-address=" + sidecarSocketPath,
+			"--provisioner=" + driverName,
+		},
+
+		VolumeMounts: []v1.VolumeMount{
+			{
+				Name:      driverSocketVolume,
+				MountPath: socketDir,
+			},
+		},
+	})
+
+	containers = append(containers, v1.Container{
+		Name:  "csi-external-attacher",
+		Image: "quay.io/k8scsi/csi-attacher:v2.0.0",
+		Args: []string{
+			"--v=5",
+			"--csi-address=/csi/csi.sock",
+		},
+		VolumeMounts: []v1.VolumeMount{
+			{
+				Name:      driverSocketVolume,
+				MountPath: socketDir,
+			},
+		},
+	})
+
+	containers = append(containers, v1.Container{
+		Name:  "ovirt-csi-driver",
+		Image: "quay.io/rgolangh/ovirt-csi-driver:latest",
+		Args: []string{
+			"--v=5",
+			"--namespace=" + "openshift-ovirt-infra",
+			"--endpoint=unix:" + sidecarSocketPath,
+			"--ovirt-conf",
 		},
 		Env: []v1.EnvVar{
 			{
-				Name:  "ADDRESS",
-				Value: sidecarSocketPath,
+				Name: "KUBE_NODE_NAME",
+				ValueFrom: &v1.EnvVarSource{
+					FieldRef: &v1.ObjectFieldSelector{
+						FieldPath: "spec.nodeName",
+					},
+				},
+			},
+			{
+				Name:  "OVIRT_CONFIG",
+				Value: configVolumePath + "ovirt-config.yaml",
 			},
 		},
 		VolumeMounts: []v1.VolumeMount{
 			{
 				Name:      driverSocketVolume,
-				MountPath: driverSocketVolumeMountPath,
+				MountPath: socketDir,
 			},
-		},
-	}
-	if podSpec.Spec.Containers[0].SecurityContext != nil {
-		provisioner.SecurityContext = podSpec.Spec.Containers[0].SecurityContext.DeepCopy()
-	}
-	podSpec.Spec.Containers = append(podSpec.Spec.Containers, provisioner)
-
-	attacherImage := *r.config.DefaultImages.AttacherImage
-	if cr.Spec.ContainerImages != nil && cr.Spec.ContainerImages.AttacherImage != nil {
-		attacherImage = *cr.Spec.ContainerImages.AttacherImage
-	}
-	attacher := v1.Container{
-		Name:  "csi-attacher",
-		Image: attacherImage,
-		Args: []string{
-			"--v=5",
-			"--csi-address=$(ADDRESS)",
-			// TODO: add leader election parameters
-		},
-		Env: []v1.EnvVar{
 			{
-				Name:  "ADDRESS",
-				Value: sidecarSocketPath,
+				Name:      configVolumeName,
+				MountPath: configVolumePath,
 			},
 		},
-		VolumeMounts: []v1.VolumeMount{
-			{
-				Name:      driverSocketVolume,
-				MountPath: driverSocketVolumeMountPath,
-			},
-		},
-	}
-	if podSpec.Spec.Containers[0].SecurityContext != nil {
-		attacher.SecurityContext = podSpec.Spec.Containers[0].SecurityContext.DeepCopy()
-	}
-	podSpec.Spec.Containers = append(podSpec.Spec.Containers, attacher)
+	})
 
-	r.addLivenessProbe(cr, podSpec, sidecarSocketPath)
-
-	// Add volumes
 	volumes := []v1.Volume{
 		{
 			Name: driverSocketVolume,
@@ -374,66 +450,64 @@ func (r *ReconcileOvirtCSIOperator) generateDeployment(cr *v1alpha1.OvirtCSIOper
 				EmptyDir: &v1.EmptyDirVolumeSource{},
 			},
 		},
-	}
-	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes, volumes...)
-
-	// Set selector to infra nodes only
-	if podSpec.Spec.NodeSelector == nil {
-		podSpec.Spec.NodeSelector = r.config.InfrastructureNodeSelector
-	}
-
-	// Patch the driver container with the volume for CSI driver socket
-	volumeMount := v1.VolumeMount{
-		Name:      driverSocketVolume,
-		MountPath: csiDriverSocketDirectory,
-	}
-	driverContainer := &podSpec.Spec.Containers[0]
-	driverContainer.VolumeMounts = append(driverContainer.VolumeMounts, volumeMount)
-
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: cr.Namespace,
-			Name:      dName,
+		{
+			Name: configVolumeName,
+			VolumeSource: v1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
 		},
-		Spec: appsv1.DeploymentSpec{
+	}
+
+	statefulSet := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "openshift-ovirt-infra",
+			Name:      "ovirt-csi-controller",
+		},
+		Spec: appsv1.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
-			Template: *podSpec,
-			Replicas: &r.config.DeploymentReplicas,
-			Strategy: appsv1.DeploymentStrategy{
-				Type: appsv1.RollingUpdateDeploymentStrategyType,
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{
+					InitContainers: initContainers,
+					Containers: containers,
+					Volumes: volumes,
+				},
 			},
+			Replicas: &replicas,
 		},
 	}
-	r.addOwner(&deployment.ObjectMeta, cr)
 
-	return deployment
+
+	return statefulSet
 }
 
 // generateStorageClass prepares a StorageClass from given template
-func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator, template *csidriverv1alpha1.StorageClassTemplate) *storagev1.StorageClass {
+func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator) *storagev1.StorageClass {
 	expectedSC := &storagev1.StorageClass{
 		// ObjectMeta will be filled below
 		Provisioner:          cr.Spec.DriverName,
-		Parameters:           template.Parameters,
-		ReclaimPolicy:        template.ReclaimPolicy,
-		MountOptions:         template.MountOptions,
-		AllowVolumeExpansion: template.AllowVolumeExpansion,
-		VolumeBindingMode:    template.VolumeBindingMode,
-		AllowedTopologies:    template.AllowedTopologies,
+		Parameters:           map[string]string{"storageDomainName": "","thinProvisioning": "true" },
+		ReclaimPolicy:        &reclaimPolicy,
+		MountOptions:         []string{},
+		AllowVolumeExpansion: &allowVolumeExpansion,
 	}
-	template.ObjectMeta.DeepCopyInto(&expectedSC.ObjectMeta)
-	if template.Default != nil && *template.Default == true {
-		expectedSC.Annotations = map[string]string{
-			defaultStorageClassAnnotation: "true",
-		}
-	} else {
-		expectedSC.Annotations = map[string]string{
-			defaultStorageClassAnnotation: "false",
-		}
+
+	expectedSC.Annotations = map[string]string{
+		defaultStorageClassAnnotation: "false",
 	}
 	return expectedSC
+}
+// generateCSIDriver prepares a CSIDriver from given template
+func (r *ReconcileOvirtCSIOperator) generateCSIDriver(cr *v1alpha1.OvirtCSIOperator) *storagev1beta1.CSIDriver {
+	expected := &storagev1beta1.CSIDriver{
+		ObjectMeta: metav1.ObjectMeta{Name: "csi.ovirt.org"},
+		Spec:       storagev1beta1.CSIDriverSpec{
+			AttachRequired:       boolPtr(true),
+			PodInfoOnMount:       boolPtr(true),
+		},
+	}
+	return expected
 }
 
 // sanitizeDriverName sanitizes CSI driver name to be usable as a directory name. All dangerous characters are replaced
@@ -516,7 +590,7 @@ func (r *ReconcileOvirtCSIOperator) addLivenessProbe(cr *v1alpha1.OvirtCSIOperat
 		VolumeMounts: []v1.VolumeMount{
 			{
 				Name:      driverSocketVolume,
-				MountPath: driverSocketVolumeMountPath,
+				MountPath: socketDir,
 			},
 		},
 	}
