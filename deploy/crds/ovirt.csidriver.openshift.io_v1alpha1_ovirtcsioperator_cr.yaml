@@ -1,7 +1,7 @@
 apiVersion: ovirt.csidriver.openshift.io/v1alpha1
 kind: OvirtCSIOperator
 metadata:
-  name: example-ovirtcsioperator
+  name: ovirtcsioperator
 spec:
   # Add fields here
   size: 3

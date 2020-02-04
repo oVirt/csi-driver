@@ -17,9 +17,13 @@ test:
 
 # Build the binary
 .PHONY: build
-build: 
-	go build -o $(BINDIR)/ovirt-csi-driver -ldflags '-X main.version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-driver
-	go build -o $(BINDIR)/ovirt-csi-operator -ldflags '-X main.version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/manager
+build: build-driver build-operator
+
+build-driver:
+	go build -o $(BINDIR)/ovirt-csi-driver -ldflags '-X version.Version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-driver
+build-operator:
+	go build -o $(BINDIR)/ovirt-csi-operator -ldflags '-X version.Version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/manager
+
 
 .PHONY: verify
 verify:
@@ -27,8 +31,11 @@ verify:
 	hack/verify-govet.sh
 
 .PHONY: image
-image:
+image: image-driver image-operator
+
+image-driver:
 	podman build . -f Dockerfile -t ${IMG}
+image-operator:
 	podman build . -f Dockerfile.operator -t ${IMG-OPERATOR}
 
 .PHONY: vendor

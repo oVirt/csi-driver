@@ -33,16 +33,15 @@ const (
 
 var (
 	infos = []clusterRoleBindingInfo{
-		{"ovirt-csi-controller-sa", "csi-external-provisioner"},
-		{"ovirt-csi-controller-sa", "csi-external-attacher"},
-		{"ovirt-csi-controller-sa", "ovirt-csi-controller-cr"},
-		{"ovirt-csi-controller-sa", "openshift:csi-driver-controller-leader-election"},
-		{"ovirt-csi-node-sa", "ovirt-csi-node-cr"},
-		{"ovirt-csi-node-sa", "openshift:csi-driver-controller-leader-election"},
+		{"ovirt-csi-controller-cr-role-binding","ovirt-csi-controller-sa", "ovirt-csi-controller-cr"},
+		{"ovirt-csi-controller-le-role-binding","ovirt-csi-controller-sa", "openshift:csi-driver-controller-leader-election"},
+		{"ovirt-csi-node-cr-role-binding","ovirt-csi-node-sa", "ovirt-csi-node-cr"},
+		{"ovirt-csi-node-le-role-binding","ovirt-csi-node-sa", "openshift:csi-driver-controller-leader-election"},
 	}
 )
 
 type clusterRoleBindingInfo struct {
+	name           string
 	serviceAccount string
 	roleRefName    string
 }
@@ -115,7 +114,7 @@ func (r *ReconcileOvirtCSIOperator) syncFinalizer(cr *v1alpha1.OvirtCSIOperator)
 // syncCSIDriverDeployment checks one CSIDriverDeployment and ensures that all "children" objects are either
 // created or updated.
 func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, []error) {
-	glog.V(2).Infof("=== Syncing CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
+	glog.V(2).Infof("Syncing CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
 	var errs []error
 
 	cr, err := r.syncFinalizer(cr)
@@ -133,9 +132,9 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 	if err != nil {
 		errs = append(errs, err)
 	}
-	err = r.syncClusterRoles(cr)
-	if err != nil {
-		errs = append(errs, err)
+	rolesErrs := r.syncClusterRoles(cr)
+	if rolesErrs != nil {
+		errs = append(errs, rolesErrs...)
 	}
 	err = r.syncRBAC(cr)
 	if err != nil {
@@ -167,7 +166,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 		// Store generation of the Deployment so we can check for DaemonSet.Spec changes.
 		children = append(children, openshiftapi.GenerationHistory{
 			Group:          appsv1.GroupName,
-			Resource:       "Deployment",
+			Resource:       "StatefulSet",
 			Namespace:      statefulSet.Namespace,
 			Name:           statefulSet.Name,
 			LastGeneration: statefulSet.Generation,
@@ -186,8 +185,8 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOperator) error {
 	glog.V(4).Infof("Syncing ServiceAccount")
 
-	controllerAccount := r.generateServiceAccount("ovirt-csi-controller-sa")
-	nodeAccount := r.generateServiceAccount("ovirt-csi-node-sa")
+	controllerAccount := r.generateServiceAccount("ovirt-csi-controller-sa", cr)
+	nodeAccount := r.generateServiceAccount("ovirt-csi-node-sa", cr)
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
@@ -202,24 +201,28 @@ func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOper
 	return nil
 }
 
-func (r *ReconcileOvirtCSIOperator) syncClusterRoles(cr *v1alpha1.OvirtCSIOperator) error {
+func (r *ReconcileOvirtCSIOperator) syncClusterRoles(cr *v1alpha1.OvirtCSIOperator) []error {
 	ctx, cancel := r.apiContext()
+	var errs []error
 	defer cancel()
 
-	_, _, err := resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleController())
+	_, _, err := resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleController(cr))
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
-	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleNode())
+	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleNode(cr))
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
-	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleLeaderElection())
+	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleLeaderElection(cr))
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
+	if len(errs) > 0{
+		return errs
+	}
 	return nil
 }
 
@@ -229,7 +232,7 @@ func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) erro
 		return err
 	}
 	for _, bindingInfo := range infos {
-		err := r.syncClusterRoleBinding(cr, bindingInfo.serviceAccount, bindingInfo.roleRefName)
+		err := r.syncClusterRoleBinding(cr, bindingInfo.name, bindingInfo.serviceAccount, bindingInfo.roleRefName)
 		if err != nil {
 			return err
 		}
@@ -237,10 +240,10 @@ func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) erro
 	return nil
 
 }
-func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount string, roleName string) error {
+func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator,name string,  serviceAccount string, roleName string) error {
 	glog.V(4).Infof("Syncing ClusterRoleBinding")
 
-	crb := r.generateClusterRoleBinding(cr, serviceAccount, roleName)
+	crb := r.generateClusterRoleBinding(cr, name, serviceAccount, roleName)
 
 	ctx, cancel := r.apiContext()
 	defer cancel()
@@ -261,7 +264,7 @@ func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.O
 
 func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.DaemonSet, error) {
 	glog.V(4).Infof("Syncing DaemonSet")
-	requiredDS := r.generateDaemonSet()
+	requiredDS := r.generateDaemonSet(cr)
 	gvk := appsv1.SchemeGroupVersion.WithKind("DaemonSet")
 	generation := r.getExpectedGeneration(cr, requiredDS, gvk)
 
@@ -277,7 +280,7 @@ func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator)
 func (r *ReconcileOvirtCSIOperator) syncStatefulSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.StatefulSet, error) {
 	glog.V(4).Infof("Syncing StatefulSet")
 
-	required := r.generateStatefulSet()
+	required := r.generateStatefulSet(cr)
 	gvk := appsv1.SchemeGroupVersion.WithKind("StatefulSet")
 	generation := r.getExpectedGeneration(cr, required, gvk)
 
@@ -408,7 +411,7 @@ func (r *ReconcileOvirtCSIOperator) syncStatus(oldInstance, newInstance *v1alpha
 // cleanupCSIDriverDeployment removes non-namespaced objects owned by the CSIDriverDeployment.
 // ObjectMeta.OwnerReference does not work for them.
 func (r *ReconcileOvirtCSIOperator) cleanupCSIDriverDeployment(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, []error) {
-	glog.V(2).Infof("=== Cleaning up CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
+	glog.V(2).Infof("Cleaning up CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
 
 	errs := r.cleanupStorageClasses(cr)
 	if err := r.cleanupClusterRoleBinding(cr); err != nil {
@@ -452,7 +455,7 @@ func (r *ReconcileOvirtCSIOperator) cleanupClusterRoleBinding(cr *v1alpha1.Ovirt
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	for _, bindingInfo := range infos {
-		crb := r.generateClusterRoleBinding(cr, bindingInfo.serviceAccount, bindingInfo.roleRefName)
+		crb := r.generateClusterRoleBinding(cr,bindingInfo.name, bindingInfo.serviceAccount, bindingInfo.roleRefName)
 		err := r.client.Delete(ctx, crb)
 		if err != nil {
 			if errors.IsNotFound(err) {

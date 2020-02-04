@@ -61,7 +61,7 @@ func handle() {
 		klog.Fatal(err)
 	}
 
-	// get the node onject by name and pass the VM ID because it is the node
+	// get the node object by name and pass the VM ID because it is the node
 	// id from the storage perspective. It will be used for attaching disks
 	var nodeId string
 	clientSet, err := kubernetes.NewForConfig(restConfig)

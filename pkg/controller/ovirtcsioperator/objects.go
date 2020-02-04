@@ -49,6 +49,12 @@ const (
 	kubeletRootVolumeName = "kubelet-root"
 
 	namespace = "openshift-ovirt-infra"
+
+	// OwnerLabelNamespace is name of label with namespace of owner CSIDriverDeployment.
+	OwnerLabelNamespace = "csidriver.storage.openshift.io/owner-namespace"
+	// OwnerLabelName is name of label with name of owner CSIDriverDeployment.
+	OwnerLabelName = "csidriver.storage.openshift.io/owner-name"
+
 )
 
 var (
@@ -59,17 +65,19 @@ var (
 
 // generateServiceAccount prepares a ServiceAccount that will be used by all pods (controller + daemon set) with
 // CSI drivers and its sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string) *v1.ServiceAccount {
-	return &v1.ServiceAccount{
+func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string, cr *v1alpha1.OvirtCSIOperator) *v1.ServiceAccount {
+	sa := v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
 	}
+	r.addOwnerLabels(&sa.ObjectMeta, cr)
+	return &sa
 }
 
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleController() *rbacv1.ClusterRole {
-	return &rbacv1.ClusterRole{
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
+	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "ovirt-csi-controller-cr",
 		},
@@ -152,10 +160,12 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleController() *rbacv1.Clus
 			},
 		},
 	}
+	r.addOwnerLabels(&role.ObjectMeta, cr)
+	return &role
 }
 
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleNode() *rbacv1.ClusterRole {
-	return &rbacv1.ClusterRole{
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleNode(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
+	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "ovirt-csi-node-cr",
 		},
@@ -218,10 +228,12 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleNode() *rbacv1.ClusterRol
 			},
 		},
 	}
+	r.addOwnerLabels(&role.ObjectMeta, cr)
+	return &role
 }
 
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection() *rbacv1.ClusterRole {
-	return &rbacv1.ClusterRole{
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
+	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "openshift:csi-driver-controller-leader-election",
 		},
@@ -233,15 +245,16 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection() *rbacv1.
 			},
 		},
 	}
+	r.addOwnerLabels(&role.ObjectMeta, cr)
+	return &role
 }
 
 // generateClusterRoleBinding prepares a ClusterRoleBinding that gives a ServiceAccount privileges needed by
 // sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount string, roleName string) *rbacv1.ClusterRoleBinding {
-	crbName := r.uniqueGlobalName(cr)
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator,name, serviceAccount, roleName string) *rbacv1.ClusterRoleBinding {
 	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: crbName,
+			Name: name,
 		},
 		Subjects: []rbacv1.Subject{
 			{
@@ -257,6 +270,7 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.Ovir
 			Name:     roleName,
 		},
 	}
+	r.addOwnerLabels(&crb.ObjectMeta, cr)
 	return crb
 }
 
@@ -287,7 +301,7 @@ func (r *ReconcileOvirtCSIOperator) generateLeaderElectionRoleBinding(cr *v1alph
 }
 
 // generateDaemonSet prepares a DaemonSet with CSI driver and driver registrar sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
+func (r *ReconcileOvirtCSIOperator) generateDaemonSet(cr *v1alpha1.OvirtCSIOperator) *appsv1.DaemonSet {
 
 	initContainers := []v1.Container{
 		{
@@ -353,14 +367,14 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
 			Command: []string{
 				"/bin/sh",
 				"-c",
-				` #!/bin/sh
-				cat << EOF > /tmp/config/ovirt-config.yaml
-				ovirt_url: $OVIRT_URL
-				ovirt_username: $OVIRT_USERNAME
-				ovirt_password: $OVIRT_PASSWORD
-				ovirt_cafile: $OVIRT_CAFILE
-				ovirt_insecure: $OVIRT_INSECURE
-				EOF`,
+				`#!/bin/sh
+cat << EOF > /tmp/config/ovirt-config.yaml
+ovirt_url: $OVIRT_URL
+ovirt_username: $OVIRT_USERNAME
+ovirt_password: $OVIRT_PASSWORD
+ovirt_cafile: $OVIRT_CAFILE
+ovirt_insecure: $OVIRT_INSECURE
+EOF`,
 			},
 			VolumeMounts: []v1.VolumeMount{
 				{
@@ -379,7 +393,7 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
 		Args: []string{
 			"--v=5",
 			"--csi-address=/csi/csi.sock",
-			"--node-name=$(KUBE_NODE_NAME)",
+			"--kubelet-registration-path=/var/lib/kubelet/plugins/ovirt.org/csi.sock",
 		},
 		Env: []v1.EnvVar{
 			{
@@ -414,8 +428,8 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
 		},
 		Args: []string{
 			"--endpoint=unix:/csi/csi.sock",
-			"--namespace=ovirt-csi-driver",
-			"--kubelet-registration-path=/var/lib/kubelet/plugins/ovirt.org/csi.sock",
+			"--namespace="+cr.Namespace,
+			"--node-name=$(KUBE_NODE_NAME)",
 		},
 		Env: []v1.EnvVar{
 			{
@@ -463,7 +477,7 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "ovirt-csi-node",
-			Namespace: "ovirt-csi-driver",
+			Namespace: cr.Namespace,
 		},
 		Spec: appsv1.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
@@ -552,14 +566,14 @@ func (r *ReconcileOvirtCSIOperator) generateDaemonSet() *appsv1.DaemonSet {
 			},
 		},
 	}
-
+	r.addOwnerLabels(&ds.ObjectMeta, cr)
 	return ds
 }
 
 // generateStatefulSet prepares a Deployment with CSI driver and attacher and provisioner sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
+func (r *ReconcileOvirtCSIOperator) generateStatefulSet(cr *v1alpha1.OvirtCSIOperator) *appsv1.StatefulSet {
 	labels := map[string]string{
-		deploymentLabel: "",
+		"app": "ovirt-csi-driver",
 	}
 
 	var containers []v1.Container
@@ -628,14 +642,14 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 			Command: []string{
 				"/bin/sh",
 				"-c",
-				` #!/bin/sh
-				cat << EOF > /tmp/config/ovirt-config.yaml
-				ovirt_url: $OVIRT_URL
-				ovirt_username: $OVIRT_USERNAME
-				ovirt_password: $OVIRT_PASSWORD
-				ovirt_cafile: $OVIRT_CAFILE
-				ovirt_insecure: $OVIRT_INSECURE
-				EOF`,
+				`#!/bin/sh
+cat << EOF > /tmp/config/ovirt-config.yaml
+ovirt_url: $OVIRT_URL
+ovirt_username: $OVIRT_USERNAME
+ovirt_password: $OVIRT_PASSWORD
+ovirt_cafile: $OVIRT_CAFILE
+ovirt_insecure: $OVIRT_INSECURE
+EOF`,
 			},
 			VolumeMounts: []v1.VolumeMount{
 				{
@@ -649,7 +663,7 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 	sidecarSocketPath := path.Join(socketDir, socketFile)
 
 	containers = append(containers, v1.Container{
-		Name:  "csi-provisioner",
+		Name:  "csi-external-provisioner",
 		Image: "quay.io/k8scsi/csi-provisioner:v1.5.0",
 		Args: []string{
 			"--v=5",
@@ -687,7 +701,6 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 			"--v=5",
 			"--namespace=" + "openshift-ovirt-infra",
 			"--endpoint=unix:" + sidecarSocketPath,
-			"--ovirt-conf",
 		},
 		Env: []v1.EnvVar{
 			{
@@ -700,7 +713,7 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 			},
 			{
 				Name:  "OVIRT_CONFIG",
-				Value: configVolumePath + "ovirt-config.yaml",
+				Value: configVolumePath + "/ovirt-config.yaml",
 			},
 		},
 		VolumeMounts: []v1.VolumeMount{
@@ -732,7 +745,7 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "openshift-ovirt-infra",
+			Namespace: cr.Namespace,
 			Name:      "ovirt-csi-controller",
 		},
 		Spec: appsv1.StatefulSetSpec{
@@ -740,6 +753,11 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 				MatchLabels: labels,
 			},
 			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "ovirt-csi-driver",
+					},
+				},
 				Spec: v1.PodSpec{
 					InitContainers: initContainers,
 					Containers:     containers,
@@ -750,35 +768,41 @@ func (r *ReconcileOvirtCSIOperator) generateStatefulSet() *appsv1.StatefulSet {
 		},
 	}
 
+	r.addOwnerLabels(&statefulSet.ObjectMeta, cr)
 	return statefulSet
 }
 
 // generateStorageClass prepares a StorageClass from given template
 func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator) *storagev1.StorageClass {
-	expectedSC := &storagev1.StorageClass{
+	var expected = &storagev1.StorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "ovirt-csi-sc",
+		},
 		// ObjectMeta will be filled below
-		Provisioner:          cr.Spec.DriverName,
+		Provisioner:          driverName,
 		Parameters:           map[string]string{"storageDomainName": "", "thinProvisioning": "true"},
 		ReclaimPolicy:        &reclaimPolicy,
 		MountOptions:         []string{},
 		AllowVolumeExpansion: &allowVolumeExpansion,
 	}
-
-	expectedSC.Annotations = map[string]string{
+	expected.Annotations = map[string]string{
 		defaultStorageClassAnnotation: "false",
 	}
-	return expectedSC
+	r.addOwnerLabels(&expected.ObjectMeta, cr)
+	return expected
 }
 
 // generateCSIDriver prepares a CSIDriver from given template
 func (r *ReconcileOvirtCSIOperator) generateCSIDriver(cr *v1alpha1.OvirtCSIOperator) *storagev1beta1.CSIDriver {
 	expected := &storagev1beta1.CSIDriver{
-		ObjectMeta: metav1.ObjectMeta{Name: "csi.ovirt.org"},
+		ObjectMeta: metav1.ObjectMeta{Name: driverName},
 		Spec: storagev1beta1.CSIDriverSpec{
 			AttachRequired: boolPtr(true),
 			PodInfoOnMount: boolPtr(true),
 		},
 	}
+	r.addOwnerLabels(&expected.ObjectMeta, cr)
 	return expected
 }
 
@@ -795,7 +819,7 @@ func (r *ReconcileOvirtCSIOperator) addOwner(meta *metav1.ObjectMeta, cr *v1alph
 	meta.OwnerReferences = []metav1.OwnerReference{
 		{
 			APIVersion: csidriverv1alpha1.SchemeGroupVersion.String(),
-			Kind:       "CSIDriverDeployment",
+			Kind:       "OvirtCSIOperator",
 			Name:       cr.Name,
 			UID:        cr.UID,
 			Controller: &bTrue,
@@ -803,8 +827,26 @@ func (r *ReconcileOvirtCSIOperator) addOwner(meta *metav1.ObjectMeta, cr *v1alph
 	}
 }
 
+func (r *ReconcileOvirtCSIOperator) addOwnerLabels(meta *metav1.ObjectMeta, cr *csidriverv1alpha1.OvirtCSIOperator) bool {
+	changed := false
+	if meta.Labels == nil {
+		meta.Labels = map[string]string{}
+		changed = true
+	}
+	if v, exists := meta.Labels[OwnerLabelNamespace]; !exists || v != cr.Namespace {
+		meta.Labels[OwnerLabelNamespace] = cr.Namespace
+		changed = true
+	}
+	if v, exists := meta.Labels[OwnerLabelName]; !exists || v != cr.Name {
+		meta.Labels[OwnerLabelName] = cr.Name
+		changed = true
+	}
+
+	return changed
+}
+
 func (r *ReconcileOvirtCSIOperator) uniqueGlobalName(i *v1alpha1.OvirtCSIOperator) string {
-	return "csidriverdeployment-" + string(i.UID)
+	return "ovirtcsioperator-" + string(i.UID)
 }
 
 func boolPtr(val bool) *bool {

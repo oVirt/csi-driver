@@ -18,10 +18,6 @@ type OvirtCSIOperatorSpec struct {
 	// managementState indicates whether and how the operator should manage the component
 	ManagementState openshiftapi.ManagementState `json:"managementState"`
 
-	// Name of the CSI driver.
-	// Required.
-	DriverName string `json:"driverName"`
-
 	// Template of pods that will run on every node. It must contain a
 	// container with the driver and all volumes it needs (Secrets,
 	// ConfigMaps, ...) Sidecars with driver registrar and liveness probe

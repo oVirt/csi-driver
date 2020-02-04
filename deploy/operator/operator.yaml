@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: csi-operator
+  namespace: openshift-ovirt-infra
 spec:
   replicas: 1
   selector:
@@ -16,9 +17,12 @@ spec:
       containers:
         - name: csi-operator
           # Replace this with the built image name
-          image: REPLACE_IMAGE
+          image: quay.io/rgolangh/ovirt-csi-operator
           command:
           - csi-operator
+          args:
+            - "--v=5"
+            - "--zap-devel"
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
