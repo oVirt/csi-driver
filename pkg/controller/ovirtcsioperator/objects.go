@@ -54,7 +54,6 @@ const (
 	OwnerLabelNamespace = "csidriver.storage.openshift.io/owner-namespace"
 	// OwnerLabelName is name of label with name of owner CSIDriverDeployment.
 	OwnerLabelName = "csidriver.storage.openshift.io/owner-name"
-
 )
 
 var (
@@ -251,7 +250,7 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection(cr *v1alph
 
 // generateClusterRoleBinding prepares a ClusterRoleBinding that gives a ServiceAccount privileges needed by
 // sidecar containers.
-func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator,name, serviceAccount, roleName string) *rbacv1.ClusterRoleBinding {
+func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, name, serviceAccount, roleName string) *rbacv1.ClusterRoleBinding {
 	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -428,7 +427,7 @@ EOF`,
 		},
 		Args: []string{
 			"--endpoint=unix:/csi/csi.sock",
-			"--namespace="+cr.Namespace,
+			"--namespace=" + cr.Namespace,
 			"--node-name=$(KUBE_NODE_NAME)",
 		},
 		Env: []v1.EnvVar{

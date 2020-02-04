@@ -33,10 +33,10 @@ const (
 
 var (
 	infos = []clusterRoleBindingInfo{
-		{"ovirt-csi-controller-cr-role-binding","ovirt-csi-controller-sa", "ovirt-csi-controller-cr"},
-		{"ovirt-csi-controller-le-role-binding","ovirt-csi-controller-sa", "openshift:csi-driver-controller-leader-election"},
-		{"ovirt-csi-node-cr-role-binding","ovirt-csi-node-sa", "ovirt-csi-node-cr"},
-		{"ovirt-csi-node-le-role-binding","ovirt-csi-node-sa", "openshift:csi-driver-controller-leader-election"},
+		{"ovirt-csi-controller-cr-role-binding", "ovirt-csi-controller-sa", "ovirt-csi-controller-cr"},
+		{"ovirt-csi-controller-le-role-binding", "ovirt-csi-controller-sa", "openshift:csi-driver-controller-leader-election"},
+		{"ovirt-csi-node-cr-role-binding", "ovirt-csi-node-sa", "ovirt-csi-node-cr"},
+		{"ovirt-csi-node-le-role-binding", "ovirt-csi-node-sa", "openshift:csi-driver-controller-leader-election"},
 	}
 )
 
@@ -220,7 +220,7 @@ func (r *ReconcileOvirtCSIOperator) syncClusterRoles(cr *v1alpha1.OvirtCSIOperat
 		errs = append(errs, err)
 	}
 
-	if len(errs) > 0{
+	if len(errs) > 0 {
 		return errs
 	}
 	return nil
@@ -240,7 +240,7 @@ func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) erro
 	return nil
 
 }
-func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator,name string,  serviceAccount string, roleName string) error {
+func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, name string, serviceAccount string, roleName string) error {
 	glog.V(4).Infof("Syncing ClusterRoleBinding")
 
 	crb := r.generateClusterRoleBinding(cr, name, serviceAccount, roleName)
@@ -455,7 +455,7 @@ func (r *ReconcileOvirtCSIOperator) cleanupClusterRoleBinding(cr *v1alpha1.Ovirt
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	for _, bindingInfo := range infos {
-		crb := r.generateClusterRoleBinding(cr,bindingInfo.name, bindingInfo.serviceAccount, bindingInfo.roleRefName)
+		crb := r.generateClusterRoleBinding(cr, bindingInfo.name, bindingInfo.serviceAccount, bindingInfo.roleRefName)
 		err := r.client.Delete(ctx, crb)
 		if err != nil {
 			if errors.IsNotFound(err) {
