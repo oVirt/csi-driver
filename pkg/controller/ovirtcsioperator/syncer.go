@@ -174,12 +174,18 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 	}
 
 	cr.Status.Children = children
-	if len(errs) == 0 {
+	var filteredErrors []error
+	for _, e := range errs {
+		if !errors.IsAlreadyExists(e) {
+			filteredErrors = append(filteredErrors, e)
+		}
+	}
+	if len(filteredErrors) == 0 {
 		cr.Status.ObservedGeneration = &cr.Generation
 	}
-	r.syncConditions(cr, statefulSet, ds, errs)
+	r.syncConditions(cr, statefulSet, ds, filteredErrors)
 
-	return cr, errs
+	return cr, filteredErrors
 }
 
 func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOperator) error {
