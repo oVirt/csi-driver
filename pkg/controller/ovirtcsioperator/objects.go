@@ -758,6 +758,7 @@ EOF`,
 					},
 				},
 				Spec: v1.PodSpec{
+					ServiceAccountName: "ovirt-csi-controller-sa",
 					InitContainers: initContainers,
 					Containers:     containers,
 					Volumes:        volumes,
