@@ -88,8 +88,9 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.O
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"persistentvolumes"},
-				Verbs: []string{"create",
+				Resources: []string{"persistentvolumes", "persistentvolumeclaims"},
+				Verbs: []string{
+					"create",
 					"delete",
 					"get",
 					"list",
