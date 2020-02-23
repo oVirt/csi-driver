@@ -88,8 +88,9 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.O
 			},
 			{
 				APIGroups: []string{""},
-				Resources: []string{"persistentvolumes"},
-				Verbs: []string{"create",
+				Resources: []string{"persistentvolumes", "persistentvolumeclaims"},
+				Verbs: []string{
+					"create",
 					"delete",
 					"get",
 					"list",
@@ -101,6 +102,11 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.O
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
 				Verbs:     []string{"list", "create"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+				Verbs:     []string{"create"},
 			},
 			{
 				APIGroups: []string{""},
@@ -758,6 +764,7 @@ EOF`,
 					},
 				},
 				Spec: v1.PodSpec{
+					ServiceAccountName: "ovirt-csi-controller-sa",
 					InitContainers: initContainers,
 					Containers:     containers,
 					Volumes:        volumes,
