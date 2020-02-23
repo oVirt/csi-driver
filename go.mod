@@ -14,10 +14,12 @@ require (
 	github.com/ovirt/go-ovirt v4.3.4+incompatible
 	github.com/spf13/pflag v1.0.5
 	go.etcd.io/etcd v3.3.18+incompatible
+	go.uber.org/zap v1.10.0
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 	google.golang.org/grpc v1.26.0
 	gopkg.in/yaml.v2 v2.2.7
 	k8s.io/api v0.17.1
+	k8s.io/apiextensions-apiserver v0.17.1
 	k8s.io/apimachinery v0.17.1
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0

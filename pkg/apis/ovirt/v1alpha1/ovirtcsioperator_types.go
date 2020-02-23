@@ -77,6 +77,7 @@ type OvirtCSIOperatorSpec struct {
 	// image will be used for empty fields.
 	// Optional.
 	ContainerImages *CSIDeploymentContainerImages `json:"containerImages,omitempty"`
+
 }
 
 // OvirtCSIOperatorStatus defines the observed state of OvirtCSIOperator

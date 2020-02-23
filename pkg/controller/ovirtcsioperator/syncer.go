@@ -3,6 +3,7 @@ package ovirtcsioperator
 import (
 	"context"
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/resourceapply"
@@ -89,7 +91,7 @@ func (r *ReconcileOvirtCSIOperator) handleCSIDriverDeployment(instance *v1alpha1
 }
 
 func (r *ReconcileOvirtCSIOperator) syncFinalizer(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, error) {
-	glog.V(4).Infof("Syncing CSIDriverDeployment.Finalizers")
+	logf.Log.Info("Syncing CSIDriverDeployment.Finalizers")
 
 	if hasFinalizer(cr.Finalizers, finalizerName) {
 		return cr, nil
@@ -114,7 +116,7 @@ func (r *ReconcileOvirtCSIOperator) syncFinalizer(cr *v1alpha1.OvirtCSIOperator)
 // syncCSIDriverDeployment checks one CSIDriverDeployment and ensures that all "children" objects are either
 // created or updated.
 func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCSIOperator) (*v1alpha1.OvirtCSIOperator, []error) {
-	glog.V(2).Infof("Syncing CSIDriverDeployment %s/%s", cr.Namespace, cr.Name)
+	logf.Log.Info("Syncing CSIDriverDeployment")
 	var errs []error
 
 	cr, err := r.syncFinalizer(cr)
@@ -183,7 +185,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 }
 
 func (r *ReconcileOvirtCSIOperator) syncServiceAccount(cr *v1alpha1.OvirtCSIOperator) error {
-	glog.V(4).Infof("Syncing ServiceAccount")
+	logf.Log.Info("Syncing ServiceAccount")
 
 	controllerAccount := r.generateServiceAccount("ovirt-csi-controller-sa", cr)
 	nodeAccount := r.generateServiceAccount("ovirt-csi-node-sa", cr)
@@ -241,7 +243,7 @@ func (r *ReconcileOvirtCSIOperator) syncRBAC(cr *v1alpha1.OvirtCSIOperator) erro
 
 }
 func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, name string, serviceAccount string, roleName string) error {
-	glog.V(4).Infof("Syncing ClusterRoleBinding")
+	logf.Log.Info("Syncing ClusterRoleBinding")
 
 	crb := r.generateClusterRoleBinding(cr, name, serviceAccount, roleName)
 
@@ -252,7 +254,7 @@ func (r *ReconcileOvirtCSIOperator) syncClusterRoleBinding(cr *v1alpha1.OvirtCSI
 }
 
 func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.OvirtCSIOperator, serviceAccount *corev1.ServiceAccount) error {
-	glog.V(4).Infof("Syncing leader election RoleBinding")
+	logf.Log.Info("Syncing leader election RoleBinding")
 
 	rb := r.generateLeaderElectionRoleBinding(cr, serviceAccount)
 
@@ -263,7 +265,7 @@ func (r *ReconcileOvirtCSIOperator) syncLeaderElectionRoleBinding(cr *v1alpha1.O
 }
 
 func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.DaemonSet, error) {
-	glog.V(4).Infof("Syncing DaemonSet")
+	logf.Log.Info("Syncing DaemonSet")
 	requiredDS := r.generateDaemonSet(cr)
 	gvk := appsv1.SchemeGroupVersion.WithKind("DaemonSet")
 	generation := r.getExpectedGeneration(cr, requiredDS, gvk)
@@ -278,7 +280,7 @@ func (r *ReconcileOvirtCSIOperator) syncDaemonSet(cr *v1alpha1.OvirtCSIOperator)
 }
 
 func (r *ReconcileOvirtCSIOperator) syncStatefulSet(cr *v1alpha1.OvirtCSIOperator) (*appsv1.StatefulSet, error) {
-	glog.V(4).Infof("Syncing StatefulSet")
+	logf.Log.Info("Syncing StatefulSet")
 
 	required := r.generateStatefulSet(cr)
 	gvk := appsv1.SchemeGroupVersion.WithKind("StatefulSet")
@@ -294,7 +296,7 @@ func (r *ReconcileOvirtCSIOperator) syncStatefulSet(cr *v1alpha1.OvirtCSIOperato
 }
 
 func (r *ReconcileOvirtCSIOperator) syncCSIDriver(cr *v1alpha1.OvirtCSIOperator) error {
-	glog.V(4).Info("Syncing CSIDriver")
+	logf.Log.Info("Syncing CSIDriver")
 
 	sc := r.generateCSIDriver(cr)
 	ctx, cancel := r.apiContext()
@@ -304,7 +306,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriver(cr *v1alpha1.OvirtCSIOperator)
 	return err
 }
 func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperator) error {
-	glog.V(4).Infof("Syncing StorageClass")
+	logf.Log.Info("Syncing StorageClass")
 
 	sc := r.generateStorageClass(cr)
 	ctx, cancel := r.apiContext()
@@ -344,12 +346,40 @@ func (r *ReconcileOvirtCSIOperator) removeUnexpectedStorageClasses(cr *v1alpha1.
 
 func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOperator, statefulSet *appsv1.StatefulSet, ds *appsv1.DaemonSet, errs []error) {
 	// OperatorStatusTypeAvailable condition: true if both Deployment and DaemonSet are fully deployed.
+	logf.Log.Info("sync Conditions")
+
 	availableCondition := openshiftapi.OperatorCondition{
 		Type: openshiftapi.OperatorStatusTypeAvailable,
 	}
 	available := true
 	unknown := false
 	var msgs []string
+	list := &corev1.PodList{}
+	r.client.List(context.Background(), list, client.InNamespace(statefulSet.GetNamespace()))
+	for _, p := range list.Items {
+		for _, ref := range p.GetOwnerReferences() {
+			if ref.Name == statefulSet.GetName() {
+				if p.Status.Phase == corev1.PodFailed {
+					v1alpha1helpers.SetOperatorCondition(
+						&instance.Status.Conditions, openshiftapi.OperatorCondition{
+							Type:    operatorv1.OperatorStatusTypeDegraded,
+							Status:  openshiftapi.ConditionFalse,
+							Reason:  "One of the stateful set's is failed",
+							Message: fmt.Sprintf("Pod %s is failed", p.GetName()),
+						})
+				} else if p.Status.Phase == corev1.PodPending {
+					v1alpha1helpers.SetOperatorCondition(
+						&instance.Status.Conditions, openshiftapi.OperatorCondition{
+							Type:    operatorv1.OperatorStatusTypeProgressing,
+							Status:  openshiftapi.ConditionTrue,
+							Reason:  "Some pods are starting up",
+							Message: fmt.Sprintf("Pod %s is starting", p.GetName()),
+						})
+				}
+			}
+		}
+	}
+
 	if statefulSet != nil {
 		if statefulSet.Status.ReadyReplicas != replicas {
 			available = false
