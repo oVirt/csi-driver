@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: opernshift-ovirt-infra
+  name: openshift-ovirt-infra
   annotations:
     openshift.io/node-selector: ""
   labels:
