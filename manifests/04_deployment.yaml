@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: csi-operator
+  name: ovirt-csi-operator
   namespace: openshift-ovirt-infra
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: csi-operator
+      name: ovirt-csi-operator
   template:
     metadata:
       labels:
-        name: csi-operator
+        name: ovirt-csi-operator
     spec:
       serviceAccountName: csi-operator
       containers:
-        - name: csi-operator
+        - name: ovirt-csi-operator
           # Replace this with the built image name
           image: quay.io/rgolangh/ovirt-csi-operator
           command:

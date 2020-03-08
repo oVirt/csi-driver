@@ -3,9 +3,10 @@ package ovirtcsioperator
 import (
 	"context"
 	"fmt"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 	"time"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/golang/glog"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
@@ -21,8 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/resourceapply"
@@ -131,6 +133,10 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 		errs = append(errs, err)
 	}
 	err = r.syncStorageClass(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	err = r.synCredentialsReuest(cr)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -311,6 +317,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriver(cr *v1alpha1.OvirtCSIOperator)
 
 	return err
 }
+
 func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperator) error {
 	logf.Log.Info("Syncing StorageClass")
 
@@ -319,6 +326,19 @@ func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperat
 	defer cancel()
 	_, _, err := resourceapply.ApplyStorageClass(ctx, r.client, sc)
 
+	return err
+}
+
+func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *ovirtv1alpha1.OvirtCSIOperator) error {
+	logf.Log.Info("Syncing CredentialsRequest")
+
+	required, err := r.generateCredentialsRequest(cr)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := r.apiContext()
+	defer cancel()
+	_, _, err := resourceapply.ApplyCredentialsRequest(ctx, r.client, required)
 	return err
 }
 

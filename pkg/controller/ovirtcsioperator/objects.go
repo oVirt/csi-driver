@@ -4,6 +4,7 @@ import (
 	"path"
 	"regexp"
 
+	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -11,9 +12,8 @@ import (
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
-
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
+	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 )
 
 const (
@@ -67,7 +67,6 @@ var (
 func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string, cr *v1alpha1.OvirtCSIOperator) *v1.ServiceAccount {
 	sa := v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
 			Name:      name,
 		},
 	}
@@ -265,7 +264,6 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.Ovir
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccount,
-				Namespace: namespace,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
@@ -782,7 +780,6 @@ EOF`,
 func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator) *storagev1.StorageClass {
 	var expected = &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
 			Name:      "ovirt-csi-sc",
 		},
 		// ObjectMeta will be filled below
@@ -797,6 +794,35 @@ func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOp
 	}
 	r.addOwnerLabels(&expected.ObjectMeta, cr)
 	return expected
+}
+
+func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.OvirtCSIOperator) (*cloudcredreqv1.CredentialsRequest, error) {
+	out := cloudcredreqv1.OvirtProviderSpec{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "cloudcredential.openshift.io/v1",
+			APIVersion: "OvirtProviderSpec",
+		},
+	}
+	providerSpec, err := cloudcredreqv1.ProviderCodec{}.EncodeProviderSpec(&out)
+	if err != nil {
+		// fail to encode providerspec
+		return nil, err
+	}
+
+	var expected = &cloudcredreqv1.CredentialsRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ovirt-csi-sc",
+		},
+
+		Spec: cloudcredreqv1.CredentialsRequestSpec{
+			SecretRef: v1.ObjectReference{
+				Name:      "ovirt-credentials",
+			},
+			ProviderSpec: providerSpec,
+		},
+	}
+	r.addOwnerLabels(&expected.ObjectMeta, cr)
+	return expected, nil
 }
 
 // generateCSIDriver prepares a CSIDriver from given template

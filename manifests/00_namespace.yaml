@@ -6,5 +6,5 @@ metadata:
     openshift.io/node-selector: ""
   labels:
     name: openshift-ovirt-infra
-    openshift.io/run-level: "0"
+    openshift.io/run-level: "1"
 

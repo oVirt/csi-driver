@@ -14,6 +14,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
+
 )
 
 func boolPtr(val bool) *bool {
@@ -280,4 +282,20 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 	}
 	glog.V(2).Infof("Updated StorageClass %s", required.Name)
 	return existing, true, nil
+}
+
+// ApplyStorageClass merges objectmeta, tries to write everything else
+func ApplyCredentialsRequest(ctx context.Context, client client.Client, required *cloudcredreqv1.CredentialsRequest) (*cloudcredreqv1.CredentialsRequest, bool, error) {
+	existing := &cloudcredreqv1.CredentialsRequest{}
+	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	if err != nil && apierrors.IsNotFound(err) {
+		err := client.Create(ctx, required)
+		if err != nil {
+			return nil, false, err
+		}
+		glog.V(2).Infof("Created CredentialsRequest %s", required.Name)
+		return required, true, nil
+	}
+
+	return nil, false, err
 }
