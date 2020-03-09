@@ -329,7 +329,7 @@ func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperat
 	return err
 }
 
-func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *ovirtv1alpha1.OvirtCSIOperator) error {
+func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *v1alpha1.OvirtCSIOperator) error {
 	logf.Log.Info("Syncing CredentialsRequest")
 
 	required, err := r.generateCredentialsRequest(cr)
@@ -338,7 +338,7 @@ func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *ovirtv1alpha1.Ovirt
 	}
 	ctx, cancel := r.apiContext()
 	defer cancel()
-	_, _, err := resourceapply.ApplyCredentialsRequest(ctx, r.client, required)
+	_, _, err = resourceapply.ApplyCredentialsRequest(ctx, r.client, required)
 	return err
 }
 

@@ -67,7 +67,7 @@ var (
 func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string, cr *v1alpha1.OvirtCSIOperator) *v1.ServiceAccount {
 	sa := v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name: name,
 		},
 	}
 	r.addOwnerLabels(&sa.ObjectMeta, cr)
@@ -262,8 +262,8 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.Ovir
 		},
 		Subjects: []rbacv1.Subject{
 			{
-				Kind:      "ServiceAccount",
-				Name:      serviceAccount,
+				Kind: "ServiceAccount",
+				Name: serviceAccount,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
@@ -780,7 +780,7 @@ EOF`,
 func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator) *storagev1.StorageClass {
 	var expected = &storagev1.StorageClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ovirt-csi-sc",
+			Name: "ovirt-csi-sc",
 		},
 		// ObjectMeta will be filled below
 		Provisioner:          driverName,
@@ -803,7 +803,12 @@ func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.Ovir
 			APIVersion: "OvirtProviderSpec",
 		},
 	}
-	providerSpec, err := cloudcredreqv1.ProviderCodec{}.EncodeProviderSpec(&out)
+	providerCodec, err := cloudcredreqv1.NewCodec()
+	if err != nil {
+		// fail to encode providerspec
+		return nil, err
+	}
+	providerSpec, err := providerCodec.EncodeProviderSpec(&out)
 	if err != nil {
 		// fail to encode providerspec
 		return nil, err
@@ -811,12 +816,12 @@ func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.Ovir
 
 	var expected = &cloudcredreqv1.CredentialsRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ovirt-csi-sc",
+			Name: "ovirt-csi-sc",
 		},
 
 		Spec: cloudcredreqv1.CredentialsRequestSpec{
 			SecretRef: v1.ObjectReference{
-				Name:      "ovirt-credentials",
+				Name: "ovirt-credentials",
 			},
 			ProviderSpec: providerSpec,
 		},
