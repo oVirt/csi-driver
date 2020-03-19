@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 
 	"github.com/golang/glog"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
@@ -16,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -136,7 +139,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 	if err != nil {
 		errs = append(errs, err)
 	}
-	err = r.synCredentialsReuest(cr)
+	err = r.syncCredentialsReuest(cr)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -153,6 +156,11 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 		errs = append(errs, err)
 	}
 	statefulSet, err := r.syncStatefulSet(cr)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	err = r.syncClusterOperator()
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -329,7 +337,7 @@ func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperat
 	return err
 }
 
-func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *v1alpha1.OvirtCSIOperator) error {
+func (r *ReconcileOvirtCSIOperator) syncCredentialsReuest(cr *v1alpha1.OvirtCSIOperator) error {
 	logf.Log.Info("Syncing CredentialsRequest")
 
 	required, err := r.generateCredentialsRequest(cr)
@@ -339,6 +347,17 @@ func (r *ReconcileOvirtCSIOperator) synCredentialsReuest(cr *v1alpha1.OvirtCSIOp
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	_, _, err = resourceapply.ApplyCredentialsRequest(ctx, r.client, required)
+	return err
+}
+
+func (r *ReconcileOvirtCSIOperator) syncClusterOperator() error {
+	logf.Log.Info("Syncing ClusterOperator")
+
+	co := r.generateClusterOperator()
+	ctx, cancel := r.apiContext()
+	defer cancel()
+	_, _, err := resourceapply.ApplyClusterOperator(ctx, r.client, co)
+
 	return err
 }
 
@@ -448,6 +467,17 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 		}
 		syncSuccessfulCondition.Message = strings.Join(errStrings, "\n")
 	}
+	co := &configv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: "ovirt-csi"}}
+
+	v1helpers.SetStatusCondition(&co.Status.Conditions,
+		configv1.ClusterOperatorStatusCondition{
+			Type:    configv1.OperatorAvailable,
+			Status:  configv1.ConditionTrue,
+			Reason:  "All good",
+			Message: "All good",
+		},
+	)
+
 	v1alpha1helpers.SetOperatorCondition(&instance.Status.Conditions, syncSuccessfulCondition)
 }
 

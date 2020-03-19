@@ -2,6 +2,7 @@ package resourceapply
 
 import (
 	"context"
+	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/golang/glog"
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
@@ -283,7 +284,7 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 	return existing, true, nil
 }
 
-// ApplyStorageClass merges objectmeta, tries to write everything else
+// ApplyCredentialsRequest applies the credential request
 func ApplyCredentialsRequest(ctx context.Context, client client.Client, required *cloudcredreqv1.CredentialsRequest) (*cloudcredreqv1.CredentialsRequest, bool, error) {
 	existing := &cloudcredreqv1.CredentialsRequest{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
@@ -293,6 +294,22 @@ func ApplyCredentialsRequest(ctx context.Context, client client.Client, required
 			return nil, false, err
 		}
 		glog.V(2).Infof("Created CredentialsRequest %s", required.Name)
+		return required, true, nil
+	}
+
+	return nil, false, err
+}
+
+// ApplyClusterOperator applies the cluster operator object
+func ApplyClusterOperator(ctx context.Context, client client.Client, required *configv1.ClusterOperator) (*configv1.ClusterOperator, bool, error) {
+	existing := &configv1.ClusterOperator{}
+	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	if err != nil && apierrors.IsNotFound(err) {
+		err := client.Create(ctx, required)
+		if err != nil {
+			return nil, false, err
+		}
+		glog.V(2).Infof("Created ClusterOperator %s", required.Name)
 		return required, true, nil
 	}
 

@@ -151,6 +151,7 @@ github.com/openshift/api/operator/v1alpha1
 # github.com/openshift/cloud-credential-operator v0.0.0-20200303191255-cc686af9c1b9
 github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1
 # github.com/openshift/library-go v0.0.0-20200120084036-bb27e57e2f2b
+github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 # github.com/operator-framework/operator-sdk v0.14.0
 github.com/operator-framework/operator-sdk/pkg/k8sutil
