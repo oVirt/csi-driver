@@ -2,10 +2,10 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ovirt-csi-sc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: csi.ovirt.org
-annotations:
-  storageclass.kubernetes.io/is-default-class: "true"
 parameters:
-  # the name of the storage domain. "nfs" is just an example.
+  # the name of the oVirt storage domain. "nfs" is just an example.
   storageDomainName: "nfs"
   thinProvisioning: "true"
