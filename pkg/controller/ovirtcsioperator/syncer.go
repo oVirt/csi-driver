@@ -6,10 +6,6 @@ import (
 	"strings"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
-
 	"github.com/golang/glog"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -133,35 +128,51 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 
 	err = r.syncCSIDriver(cr)
 	if err != nil {
+		logf.Log.Error(err, "CSI Driver")
+
 		errs = append(errs, err)
 	}
 	err = r.syncStorageClass(cr)
 	if err != nil {
+		logf.Log.Error(err, "Storage class")
+
 		errs = append(errs, err)
 	}
 	err = r.syncCredentialsReuest(cr)
 	if err != nil {
+		logf.Log.Error(err, "Cloud creds")
+
 		errs = append(errs, err)
 	}
 	rolesErrs := r.syncClusterRoles(cr)
 	if rolesErrs != nil {
+		logf.Log.Error(err, "Cluster roles")
+
 		errs = append(errs, rolesErrs...)
 	}
 	err = r.syncRBAC(cr)
 	if err != nil {
+		logf.Log.Error(err, "rbac")
+
 		errs = append(errs, err)
 	}
 	ds, err := r.syncDaemonSet(cr)
 	if err != nil {
+		logf.Log.Error(err, "daemonset")
+
 		errs = append(errs, err)
 	}
 	statefulSet, err := r.syncStatefulSet(cr)
 	if err != nil {
+		logf.Log.Error(err, "statefulset")
+
 		errs = append(errs, err)
 	}
 
-	err = r.syncClusterOperator()
+	err = r.syncClusterOperator(cr)
 	if err != nil {
+		logf.Log.Error(err, "cluster operator")
+
 		errs = append(errs, err)
 	}
 
@@ -230,16 +241,25 @@ func (r *ReconcileOvirtCSIOperator) syncClusterRoles(cr *v1alpha1.OvirtCSIOperat
 
 	_, _, err := resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleController(cr))
 	if err != nil {
-		errs = append(errs, err)
+		logf.Log.Error(err, "ApplyClusterRole generateClusterRoleController")
+		if !errors.IsAlreadyExists(err) {
+			errs = append(errs, err)
+		}
 	}
 
 	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleNode(cr))
 	if err != nil {
-		errs = append(errs, err)
+		logf.Log.Error(err, "ApplyClusterRole generateClusterRoleNode")
+		if !errors.IsAlreadyExists(err) {
+			errs = append(errs, err)
+		}
 	}
 	_, _, err = resourceapply.ApplyClusterRole(ctx, r.client, r.generateClusterRoleLeaderElection(cr))
 	if err != nil {
-		errs = append(errs, err)
+		logf.Log.Error(err, "ApplyClusterRole generateClusterRoleLeaderElection")
+		if !errors.IsAlreadyExists(err) {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -350,15 +370,20 @@ func (r *ReconcileOvirtCSIOperator) syncCredentialsReuest(cr *v1alpha1.OvirtCSIO
 	return err
 }
 
-func (r *ReconcileOvirtCSIOperator) syncClusterOperator() error {
+func (r *ReconcileOvirtCSIOperator) syncClusterOperator(cr *v1alpha1.OvirtCSIOperator) error {
 	logf.Log.Info("Syncing ClusterOperator")
 
-	co := r.generateClusterOperator()
+	co := r.generateClusterOperator(cr)
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	_, _, err := resourceapply.ApplyClusterOperator(ctx, r.client, co)
+	logf.Log.Error(err, "error in Syncing ClusterOperator")
 
-	return err
+	if !errors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
 }
 
 func (r *ReconcileOvirtCSIOperator) removeUnexpectedStorageClasses(cr *v1alpha1.OvirtCSIOperator, expectedClasses sets.String) []error {
@@ -399,32 +424,8 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 	available := true
 	unknown := false
 	var msgs []string
-	list := &corev1.PodList{}
-	r.client.List(context.Background(), list, client.InNamespace(statefulSet.GetNamespace()))
-	for _, p := range list.Items {
-		for _, ref := range p.GetOwnerReferences() {
-			if ref.Name == statefulSet.GetName() {
-				if p.Status.Phase == corev1.PodFailed {
-					v1alpha1helpers.SetOperatorCondition(
-						&instance.Status.Conditions, openshiftapi.OperatorCondition{
-							Type:    operatorv1.OperatorStatusTypeDegraded,
-							Status:  openshiftapi.ConditionFalse,
-							Reason:  "One of the stateful set's is failed",
-							Message: fmt.Sprintf("Pod %s is failed", p.GetName()),
-						})
-				} else if p.Status.Phase == corev1.PodPending {
-					v1alpha1helpers.SetOperatorCondition(
-						&instance.Status.Conditions, openshiftapi.OperatorCondition{
-							Type:    operatorv1.OperatorStatusTypeProgressing,
-							Status:  openshiftapi.ConditionTrue,
-							Reason:  "Some pods are starting up",
-							Message: fmt.Sprintf("Pod %s is starting", p.GetName()),
-						})
-				}
-			}
-		}
-	}
 
+	logf.Log.Info("Checking statefulset")
 	if statefulSet != nil {
 		if statefulSet.Status.ReadyReplicas != replicas {
 			available = false
@@ -433,10 +434,12 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 	} else {
 		unknown = true
 	}
+
+	logf.Log.Info("Checking daemonset")
 	if ds != nil {
 		if ds.Status.NumberUnavailable > 0 {
 			available = false
-			msgs = append(msgs, fmt.Sprintf("DaemonSet %q with CSI driver has %v not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
+			msgs = append(msgs, fmt.Sprintf("DaemonSet msgs%q with CSI driver has %v not ready pod(s).", ds.Name, ds.Status.NumberUnavailable))
 		}
 	} else {
 		unknown = true
@@ -460,6 +463,7 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 		Message: "",
 	}
 	if len(errs) > 0 {
+		logf.Log.Info("Errors encountered")
 		syncSuccessfulCondition.Status = openshiftapi.ConditionFalse
 		errStrings := make([]string, len(errs))
 		for i := range errs {
@@ -467,16 +471,6 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 		}
 		syncSuccessfulCondition.Message = strings.Join(errStrings, "\n")
 	}
-	co := &configv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: "ovirt-csi"}}
-
-	v1helpers.SetStatusCondition(&co.Status.Conditions,
-		configv1.ClusterOperatorStatusCondition{
-			Type:    configv1.OperatorAvailable,
-			Status:  configv1.ConditionTrue,
-			Reason:  "All good",
-			Message: "All good",
-		},
-	)
 
 	v1alpha1helpers.SetOperatorCondition(&instance.Status.Conditions, syncSuccessfulCondition)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/golang/glog"
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,6 +15,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func boolPtr(val bool) *bool {
@@ -32,7 +32,7 @@ func ApplyCSIDriver(ctx context.Context, client client.Client, required *storage
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created CSIDriver %s/%s", required.Namespace, required.Name)
+		logf.Log.Info("Created CSIDriver %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -49,7 +49,7 @@ func ApplyCSIDriver(ctx context.Context, client client.Client, required *storage
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
+	logf.Log.Info("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
 	return existing, true, nil
 }
 
@@ -62,7 +62,7 @@ func ApplyServiceAccount(ctx context.Context, client client.Client, required *co
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created ServiceAccount %s/%s", required.Namespace, required.Name)
+		logf.Log.Info("Created ServiceAccount %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -79,7 +79,7 @@ func ApplyServiceAccount(ctx context.Context, client client.Client, required *co
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
+	logf.Log.Info("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
 	return existing, true, nil
 }
 
@@ -102,7 +102,7 @@ func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created ClusterRoleBinding %s", required.Name)
+		logf.Log.Info("Created ClusterRoleBinding %s", required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -123,7 +123,7 @@ func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated ClusterRoleBinding %s", required.Name)
+	logf.Log.Info("Updated ClusterRoleBinding %s", required.Name)
 	return existing, true, nil
 }
 
@@ -136,7 +136,7 @@ func ApplyRoleBinding(ctx context.Context, client client.Client, required *rbacv
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created RoleBinding %s/%s", required.Namespace, required.Name)
+		logf.Log.Info("Created RoleBinding %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -157,7 +157,7 @@ func ApplyRoleBinding(ctx context.Context, client client.Client, required *rbacv
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated RoleBinding %s/%s", required.Namespace, required.Name)
+	logf.Log.Info("Updated RoleBinding %s/%s", required.Namespace, required.Name)
 	return existing, true, nil
 }
 
@@ -170,7 +170,7 @@ func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created StatefulSet %s/%s", required.Namespace, required.Name)
+		logf.Log.Info("Created StatefulSet %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -191,7 +191,7 @@ func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated StatefulSet %s/%s", required.Namespace, required.Name)
+	logf.Log.Info("Updated StatefulSet %s/%s", required.Namespace, required.Name)
 	return toWrite, true, nil
 }
 
@@ -204,7 +204,7 @@ func ApplyDaemonSet(ctx context.Context, client client.Client, required *appsv1.
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created DaemonSet %s/%s", required.Namespace, required.Name)
+		logf.Log.Info("Created DaemonSet %s/%s", required.Namespace, required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -225,7 +225,7 @@ func ApplyDaemonSet(ctx context.Context, client client.Client, required *appsv1.
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated DaemonSet %s/%s", required.Namespace, required.Name)
+	logf.Log.Info("Updated DaemonSet %s/%s", required.Namespace, required.Name)
 	return toWrite, true, nil
 }
 
@@ -238,7 +238,7 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created StorageClass %s", required.Name)
+		logf.Log.Info("Created StorageClass %s", required.Name)
 		return required, true, nil
 	}
 	if err != nil {
@@ -280,7 +280,7 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 	if err != nil {
 		return nil, false, err
 	}
-	glog.V(2).Infof("Updated StorageClass %s", required.Name)
+	logf.Log.Info("Updated StorageClass %s", required.Name)
 	return existing, true, nil
 }
 
@@ -293,7 +293,7 @@ func ApplyCredentialsRequest(ctx context.Context, client client.Client, required
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created CredentialsRequest %s", required.Name)
+		logf.Log.Info("Created CredentialsRequest %s", required.Name)
 		return required, true, nil
 	}
 
@@ -309,7 +309,7 @@ func ApplyClusterOperator(ctx context.Context, client client.Client, required *c
 		if err != nil {
 			return nil, false, err
 		}
-		glog.V(2).Infof("Created ClusterOperator %s", required.Name)
+		logf.Log.Info("Created ClusterOperator %s", required.Name)
 		return required, true, nil
 	}
 

@@ -12,6 +12,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	csidriverv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
@@ -68,7 +69,8 @@ var (
 func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string, cr *v1alpha1.OvirtCSIOperator) *v1.ServiceAccount {
 	sa := v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: namespace,
 		},
 	}
 	r.addOwnerLabels(&sa.ObjectMeta, cr)
@@ -78,7 +80,8 @@ func (r *ReconcileOvirtCSIOperator) generateServiceAccount(name string, cr *v1al
 func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
 	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "ovirt-csi-controller-cr",
+			Name:      "ovirt-csi-controller-cr",
+			Namespace: namespace,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -172,7 +175,8 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleController(cr *v1alpha1.O
 func (r *ReconcileOvirtCSIOperator) generateClusterRoleNode(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
 	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "ovirt-csi-node-cr",
+			Name:      "ovirt-csi-node-cr",
+			Namespace: namespace,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -240,7 +244,8 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleNode(cr *v1alpha1.OvirtCS
 func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection(cr *v1alpha1.OvirtCSIOperator) *rbacv1.ClusterRole {
 	role := rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "openshift:csi-driver-controller-leader-election",
+			Name:      "openshift:csi-driver-controller-leader-election",
+			Namespace: namespace,
 		},
 		Rules: []rbacv1.PolicyRule{
 			{
@@ -259,12 +264,14 @@ func (r *ReconcileOvirtCSIOperator) generateClusterRoleLeaderElection(cr *v1alph
 func (r *ReconcileOvirtCSIOperator) generateClusterRoleBinding(cr *v1alpha1.OvirtCSIOperator, name, serviceAccount, roleName string) *rbacv1.ClusterRoleBinding {
 	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: namespace,
 		},
 		Subjects: []rbacv1.Subject{
 			{
-				Kind: "ServiceAccount",
-				Name: serviceAccount,
+				Kind:      "ServiceAccount",
+				Name:      serviceAccount,
+				Namespace: namespace,
 			},
 		},
 		RoleRef: rbacv1.RoleRef{
@@ -798,37 +805,34 @@ func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOp
 }
 
 func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.OvirtCSIOperator) (*cloudcredreqv1.CredentialsRequest, error) {
-	out := cloudcredreqv1.OvirtProviderSpec{
+	ovirtSpec := cloudcredreqv1.OvirtProviderSpec{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "cloudcredential.openshift.io/v1",
 			APIVersion: "OvirtProviderSpec",
 		},
 	}
-	providerCodec, err := cloudcredreqv1.NewCodec()
-	if err != nil {
-		// fail to encode providerspec
-		return nil, err
-	}
-	providerSpec, err := providerCodec.EncodeProviderSpec(&out)
-	if err != nil {
-		// fail to encode providerspec
-		return nil, err
-	}
-
-	var expected = &cloudcredreqv1.CredentialsRequest{
+	var request = &cloudcredreqv1.CredentialsRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "ovirt-csi-sc",
+			Name:      "ovirt-credentials",
+			Namespace: "openshift-ovirt-infra",
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CredentialsRequest",
+			APIVersion: "cloudcredential.openshift.io/v1",
 		},
 
 		Spec: cloudcredreqv1.CredentialsRequestSpec{
 			SecretRef: v1.ObjectReference{
-				Name: "ovirt-credentials",
+				Name:      "ovirt-credentials",
+				Namespace: "openshift-ovirt-infra",
 			},
-			ProviderSpec: providerSpec,
+			ProviderSpec: &runtime.RawExtension{
+				Object: &ovirtSpec,
+			},
 		},
 	}
-	r.addOwnerLabels(&expected.ObjectMeta, cr)
-	return expected, nil
+	r.addOwnerLabels(&request.ObjectMeta, cr)
+	return request, nil
 }
 
 // generateCSIDriver prepares a CSIDriver from given template
@@ -843,9 +847,9 @@ func (r *ReconcileOvirtCSIOperator) generateCSIDriver(cr *v1alpha1.OvirtCSIOpera
 	r.addOwnerLabels(&expected.ObjectMeta, cr)
 	return expected
 }
-func (r *ReconcileOvirtCSIOperator) generateClusterOperator() *configv1.ClusterOperator {
+func (r *ReconcileOvirtCSIOperator) generateClusterOperator(cr *v1alpha1.OvirtCSIOperator) *configv1.ClusterOperator {
 
-	return &configv1.ClusterOperator{
+	expected := &configv1.ClusterOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterOperator",
 			APIVersion: "config.openshift.io/v1",
@@ -868,6 +872,8 @@ func (r *ReconcileOvirtCSIOperator) generateClusterOperator() *configv1.ClusterO
 			},
 		},
 	}
+	r.addOwnerLabels(&expected.ObjectMeta, cr)
+	return expected
 }
 
 // sanitizeDriverName sanitizes CSI driver name to be usable as a directory name. All dangerous characters are replaced

@@ -6,6 +6,81 @@ metadata:
   namespace: openshift-ovirt-infra
 rules:
 - apiGroups:
+  - "cloudcredential.openshift.io"
+  resources:
+  - "*"
+  - "credentialsrequests"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - "config.openshift.io"
+  resources:
+  - "*"
+  - "dnses"
+  - "featuregates"
+  - "images"
+  - "consoles"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - "clusteroperators.config.openshift.io"
+  resources:
+  - "*"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+- apiGroups:
+  - "dnses.config.openshift.io"
+  resources:
+  - "*"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+- apiGroups:
+  - "featuregates.config.openshift.io"
+  resources:
+  - "*"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - "*"
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ""
   resources:
   - "*"
@@ -36,30 +111,30 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-    - rbac.authorization.k8s.io
+  - rbac.authorization.k8s.io
   resources:
-    - "*"
+  - "*"
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
-    - security.openshift.io
+  - security.openshift.io
   resources:
-    - "*"
+  - "*"
   verbs:
-    - use
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - use
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - apps
   resources:
