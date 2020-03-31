@@ -3,6 +3,7 @@ package ovirtcsioperator
 import (
 	"path"
 	"regexp"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
@@ -50,7 +51,7 @@ const (
 	// Name of volume with /var/lib/kubelet
 	kubeletRootVolumeName = "kubelet-root"
 
-	namespace = "openshift-ovirt-infra"
+	namespace = "openshift-ovirt-csi-operator"
 
 	// OwnerLabelNamespace is name of label with namespace of owner CSIDriverDeployment.
 	OwnerLabelNamespace = "csidriver.storage.openshift.io/owner-namespace"
@@ -710,7 +711,7 @@ EOF`,
 		Image: "quay.io/rgolangh/ovirt-csi-driver:latest",
 		Args: []string{
 			"--v=5",
-			"--namespace=" + "openshift-ovirt-infra",
+			"--namespace=" + namespace,
 			"--endpoint=unix:" + sidecarSocketPath,
 		},
 		Env: []v1.EnvVar{
@@ -807,24 +808,24 @@ func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOp
 func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.OvirtCSIOperator) (*cloudcredreqv1.CredentialsRequest, error) {
 	ovirtSpec := cloudcredreqv1.OvirtProviderSpec{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "cloudcredential.openshift.io/v1",
-			APIVersion: "OvirtProviderSpec",
+			APIVersion: "cloudcredential.openshift.io/v1",
+			Kind:       "OvirtProviderSpec",
 		},
 	}
 	var request = &cloudcredreqv1.CredentialsRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "ovirt-credentials",
-			Namespace: "openshift-ovirt-infra",
+			Namespace: namespace,
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "CredentialsRequest",
 			APIVersion: "cloudcredential.openshift.io/v1",
+			Kind:       "OvirtProviderSpec",
 		},
 
 		Spec: cloudcredreqv1.CredentialsRequestSpec{
 			SecretRef: v1.ObjectReference{
 				Name:      "ovirt-credentials",
-				Namespace: "openshift-ovirt-infra",
+				Namespace: namespace,
 			},
 			ProviderSpec: &runtime.RawExtension{
 				Object: &ovirtSpec,
@@ -861,8 +862,10 @@ func (r *ReconcileOvirtCSIOperator) generateClusterOperator(cr *v1alpha1.OvirtCS
 		Spec: configv1.ClusterOperatorSpec{},
 		Status: configv1.ClusterOperatorStatus{
 			Conditions: []configv1.ClusterOperatorStatusCondition{{
-				Type:   configv1.OperatorProgressing,
-				Status: configv1.ConditionTrue,
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now()),
+				Message:            "ovirt-csi operator created",
 			}},
 			Versions: []configv1.OperandVersion{
 				{
@@ -872,7 +875,6 @@ func (r *ReconcileOvirtCSIOperator) generateClusterOperator(cr *v1alpha1.OvirtCS
 			},
 		},
 	}
-	r.addOwnerLabels(&expected.ObjectMeta, cr)
 	return expected
 }
 

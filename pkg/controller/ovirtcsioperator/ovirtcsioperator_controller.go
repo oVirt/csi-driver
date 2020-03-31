@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
+	configv1 "github.com/openshift/api/config/v1"
 	ovirtv1alpha1 "github.com/ovirt/csi-driver/pkg/apis/ovirt/v1alpha1"
 	"github.com/ovirt/csi-driver/pkg/config"
 )
@@ -98,6 +99,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		IsController: true,
 		OwnerType:    &ovirtv1alpha1.OvirtCSIOperator{},
 	})
+	err = c.Watch(&source.Kind{Type: &configv1.ClusterOperator{}}, &handler.EnqueueRequestForObject{})
 
 	return nil
 }

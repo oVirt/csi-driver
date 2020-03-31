@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ovirt-csi-operator
-  namespace: openshift-ovirt-infra
+  namespace: openshift-ovirt-csi-operator
 spec:
   replicas: 1
   selector:
@@ -25,6 +25,8 @@ spec:
             - "--zap-devel"
           imagePullPolicy: Always
           env:
+            - name: RELEASE_VERSION
+              value: "0.0.1-snapshot"  
             - name: WATCH_NAMESPACE
               valueFrom:
                 fieldRef:

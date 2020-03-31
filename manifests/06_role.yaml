@@ -3,7 +3,7 @@ kind: ClusterRole
 metadata:
   creationTimestamp: null
   name: csi-operator
-  namespace: openshift-ovirt-infra
+  namespace: openshift-ovirt-csi-operator
 rules:
 - apiGroups:
   - "cloudcredential.openshift.io"
@@ -72,6 +72,7 @@ rules:
   - ""
   resources:
   - "*"
+  - "nodes"
   verbs:
   - create
   - delete

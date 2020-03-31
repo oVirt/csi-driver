@@ -5,7 +5,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: csi-operator
-  namespace: openshift-ovirt-infra
+  namespace: openshift-ovirt-csi-operator
 roleRef:
   kind: ClusterRole
   name: csi-operator

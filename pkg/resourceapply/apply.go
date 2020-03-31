@@ -2,6 +2,8 @@ package resourceapply
 
 import (
 	"context"
+	"fmt"
+
 	configv1 "github.com/openshift/api/config/v1"
 
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
@@ -32,7 +34,7 @@ func ApplyCSIDriver(ctx context.Context, client client.Client, required *storage
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created CSIDriver %s/%s", required.Namespace, required.Name)
+		logf.Log.Info(fmt.Sprintf("Created CSIDriver %s/%s", required.Namespace, required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -49,7 +51,7 @@ func ApplyCSIDriver(ctx context.Context, client client.Client, required *storage
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated ServiceAccount %s/%s", required.Namespace, required.Name))
 	return existing, true, nil
 }
 
@@ -62,7 +64,7 @@ func ApplyServiceAccount(ctx context.Context, client client.Client, required *co
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created ServiceAccount %s/%s", required.Namespace, required.Name)
+		logf.Log.Info(fmt.Sprintf("Created ServiceAccount %s/%s", required.Namespace, required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -79,7 +81,7 @@ func ApplyServiceAccount(ctx context.Context, client client.Client, required *co
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated ServiceAccount %s/%s", required.Namespace, required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated ServiceAccount %s/%s", required.Namespace, required.Name))
 	return existing, true, nil
 }
 
@@ -97,12 +99,13 @@ func ApplyClusterRole(ctx context.Context, client client.Client, cr *rbacv1.Clus
 func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing := &rbacv1.ClusterRoleBinding{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	logf.Log.Info(fmt.Sprintf("Cluster Role Binding: error %v", err))
 	if err != nil && apierrors.IsNotFound(err) {
 		err := client.Create(ctx, required)
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created ClusterRoleBinding %s", required.Name)
+		logf.Log.Info(fmt.Sprintf("Created ClusterRoleBinding %s", required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -123,7 +126,7 @@ func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated ClusterRoleBinding %s", required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated ClusterRoleBinding %s", required.Name))
 	return existing, true, nil
 }
 
@@ -131,12 +134,14 @@ func ApplyClusterRoleBinding(ctx context.Context, client client.Client, required
 func ApplyRoleBinding(ctx context.Context, client client.Client, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
 	existing := &rbacv1.RoleBinding{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	logf.Log.Info(fmt.Sprintf("Role Binding: error %v", err))
+
 	if err != nil && apierrors.IsNotFound(err) {
 		err := client.Create(ctx, required)
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created RoleBinding %s/%s", required.Namespace, required.Name)
+		logf.Log.Info(fmt.Sprintf("Created RoleBinding %s/%s", required.Namespace, required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -157,7 +162,7 @@ func ApplyRoleBinding(ctx context.Context, client client.Client, required *rbacv
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated RoleBinding %s/%s", required.Namespace, required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated RoleBinding %s/%s", required.Namespace, required.Name))
 	return existing, true, nil
 }
 
@@ -170,7 +175,7 @@ func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created StatefulSet %s/%s", required.Namespace, required.Name)
+		logf.Log.Info(fmt.Sprintf("Created StatefulSet %s/%s", required.Namespace, required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -191,7 +196,7 @@ func ApplyStatefulSet(ctx context.Context, client client.Client, required *appsv
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated StatefulSet %s/%s", required.Namespace, required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated StatefulSet %s/%s", required.Namespace, required.Name))
 	return toWrite, true, nil
 }
 
@@ -204,7 +209,7 @@ func ApplyDaemonSet(ctx context.Context, client client.Client, required *appsv1.
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created DaemonSet %s/%s", required.Namespace, required.Name)
+		logf.Log.Info(fmt.Sprintf("Created DaemonSet %s/%s", required.Namespace, required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -225,7 +230,7 @@ func ApplyDaemonSet(ctx context.Context, client client.Client, required *appsv1.
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated DaemonSet %s/%s", required.Namespace, required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated DaemonSet %s/%s", required.Namespace, required.Name))
 	return toWrite, true, nil
 }
 
@@ -238,7 +243,7 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created StorageClass %s", required.Name)
+		logf.Log.Info(fmt.Sprintf("Created StorageClass %s", required.Name))
 		return required, true, nil
 	}
 	if err != nil {
@@ -280,7 +285,7 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 	if err != nil {
 		return nil, false, err
 	}
-	logf.Log.Info("Updated StorageClass %s", required.Name)
+	logf.Log.Info(fmt.Sprintf("Updated StorageClass %s", required.Name))
 	return existing, true, nil
 }
 
@@ -288,12 +293,13 @@ func ApplyStorageClass(ctx context.Context, client client.Client, required *stor
 func ApplyCredentialsRequest(ctx context.Context, client client.Client, required *cloudcredreqv1.CredentialsRequest) (*cloudcredreqv1.CredentialsRequest, bool, error) {
 	existing := &cloudcredreqv1.CredentialsRequest{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	logf.Log.Info(fmt.Sprintf("CredentialRequest: error %v", err))
 	if err != nil && apierrors.IsNotFound(err) {
 		err := client.Create(ctx, required)
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created CredentialsRequest %s", required.Name)
+		logf.Log.Info(fmt.Sprintf("Created CredentialsRequest %s", required.Name))
 		return required, true, nil
 	}
 
@@ -304,12 +310,14 @@ func ApplyCredentialsRequest(ctx context.Context, client client.Client, required
 func ApplyClusterOperator(ctx context.Context, client client.Client, required *configv1.ClusterOperator) (*configv1.ClusterOperator, bool, error) {
 	existing := &configv1.ClusterOperator{}
 	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
+	logf.Log.Info(fmt.Sprintf("Cluster operator: error %v", err))
 	if err != nil && apierrors.IsNotFound(err) {
 		err := client.Create(ctx, required)
+		logf.Log.Info(fmt.Sprintf("Created ClusterOperator %v", required))
+
 		if err != nil {
 			return nil, false, err
 		}
-		logf.Log.Info("Created ClusterOperator %s", required.Name)
 		return required, true, nil
 	}
 

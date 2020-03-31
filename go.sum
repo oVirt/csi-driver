@@ -535,6 +535,7 @@ github.com/openshift/api v0.0.0-20200116145750-0e2ff1e215dd/go.mod h1:fT6U/JfG8u
 github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible h1:6il8W875Oq9vycPkRV5TteLP9IfMEX3lyOl5yN+CtdI=
 github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b/go.mod h1:6rzn+JTr7+WYS2E1TExP4gByoABxMznR6y2SnUIkmxk=
+github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240 h1:XYfJWv2Ch+qInGLDEedHRtDsJwnxyU1L8U7SY56NcA8=
 github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240/go.mod h1:4riOwdj99Hd/q+iAcJZfNCsQQQMwURnZV6RL4WHYS5w=
 github.com/openshift/cloud-credential-operator v0.0.0-20200303191255-cc686af9c1b9 h1:kh2VknVPiHy5yvdFlztrqfXxNTyIr4iZDYeQGyKQYZo=
 github.com/openshift/cloud-credential-operator v0.0.0-20200303191255-cc686af9c1b9/go.mod h1:iPn+uhIe7nkP5BMHe2QnbLtg5m/AIQ1xvz9s3cig5ss=
