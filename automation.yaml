@@ -1,0 +1,20 @@
+archs: 
+  - x86_64
+distros:
+  - fc31
+sub-stages:
+  - run-on-fc31-container:
+      containers:
+        # The centos7 image is used for pulling source code
+        - image: centos/s2i-base-centos7
+          args:
+          - bash
+          - -exc
+          - |
+            git init .
+            git fetch "$STD_CI_CLONE_URL" +refs/heads/*:refs/remotes/origin/*
+            git fetch "$STD_CI_CLONE_URL" +"$STD_CI_REFSPEC":myhead
+            git checkout myhead
+        # Actual tests run in an fc31 image
+        - image: docker.io/fedora:31
+
