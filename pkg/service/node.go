@@ -162,22 +162,22 @@ func getDeviceInfo(device string) (string, error) {
 		return "", errors.New(err.Error())
 	}
 
-	klog.Info("blkid -o value -s TYPE ", devicePath)
-	cmd := exec.Command("blkid", "-o", "value", "-s", "TYPE", devicePath)
+	klog.Info("lsblk -nro FSTYPE ", devicePath)
+	cmd := exec.Command("lsblk", "-nro", "FSTYPE", devicePath)
 	out, err := cmd.Output()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
 		if exitError.ExitCode() == 2 {
 			return "", nil
 		}
-		klog.Errorf("Couldn't run blkid on %s", device)
-		return "", errors.New(err.Error() + "blkid failed with " + string(exitError.Stderr))
+		klog.Errorf("Couldn't run lsblk on %s", device)
+		return "", errors.New(err.Error() + "lsblk failed with " + string(exitError.Stderr))
 	}
 
 	reader := bufio.NewReader(bytes.NewReader(out))
 	line, _, err := reader.ReadLine()
 	if err != nil {
-		klog.Errorf("Error occured while trying to read blkid output")
+		klog.Errorf("Error occured while trying to read lsblk output")
 		return "", err
 	}
 	return string(line), nil
