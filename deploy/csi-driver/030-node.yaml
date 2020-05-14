@@ -109,6 +109,8 @@ spec:
               mountPropagation: Bidirectional
             - name: host-dev
               mountPath: /dev
+            - name: udev
+              mountPath: /run/udev
             - name: mountpoint-dir
               mountPath: /var/lib/kubelet/pods
               mountPropagation: Bidirectional
@@ -132,6 +134,9 @@ spec:
         - name: host-dev
           hostPath:
             path: /dev
+        - name: udev
+          hostPath:
+            path: /run/udev
         - name: config
           emptyDir: {}
         - name: mountpoint-dir
