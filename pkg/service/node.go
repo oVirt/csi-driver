@@ -43,16 +43,20 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
 	if err != nil {
+		klog.Errorf("Failed to fetch device info for volume %s on node %s", req.VolumeId, n.nodeId)
 		return nil, err
 	}
+	if filesystem != "" {
+		klog.Infof("Detected fs %s, returning", filesystem)
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	fsType := req.VolumeCapability.GetMount().FsType
-	if filesystem == "" {
-		// no filesystem - create it
-		klog.Infof("Creating FS %s on device %s", fsType, device)
-		makeFSErr := makeFS(device, fsType)
-		if makeFSErr != nil {
-			return nil, makeFSErr
-		}
+	// no filesystem - create it
+	klog.Infof("Creating FS %s on device %s", fsType, device)
+	makeFSErr := makeFS(device, fsType)
+	if makeFSErr != nil {
+		return nil, makeFSErr
 	}
 
 	return &csi.NodeStageVolumeResponse{}, nil
@@ -154,18 +158,26 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 func getDeviceInfo(device string) (string, error) {
 	devicePath, err := filepath.EvalSymlinks(device)
 	if err != nil {
+		klog.Errorf("Unable to evaluate symlink for device %s", device)
 		return "", errors.New(err.Error())
 	}
-	cmd := exec.Command("lsblk", "-nro", "FSTYPE", devicePath)
+
+	klog.Info("blkid -o value -s TYPE ", devicePath)
+	cmd := exec.Command("blkid", "-o", "value", "-s", "TYPE", devicePath)
 	out, err := cmd.Output()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
-		return "", errors.New(err.Error() + "lsblk failed with " + string(exitError.Stderr))
+		if exitError.ExitCode() == 2 {
+			return "", nil
+		}
+		klog.Errorf("Couldn't run blkid on %s", device)
+		return "", errors.New(err.Error() + "blkid failed with " + string(exitError.Stderr))
 	}
 
 	reader := bufio.NewReader(bytes.NewReader(out))
 	line, _, err := reader.ReadLine()
 	if err != nil {
+		klog.Errorf("Error occured while trying to read blkid output")
 		return "", err
 	}
 	return string(line), nil
