@@ -43,16 +43,20 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
 	if err != nil {
+		klog.Errorf("Failed to fetch device info for volume %s on node %s", req.VolumeId, n.nodeId)
 		return nil, err
 	}
+	if filesystem != "" {
+		klog.Infof("Detected fs %s, returning", filesystem)
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	fsType := req.VolumeCapability.GetMount().FsType
-	if filesystem == "" {
-		// no filesystem - create it
-		klog.Infof("Creating FS %s on device %s", fsType, device)
-		makeFSErr := makeFS(device, fsType)
-		if makeFSErr != nil {
-			return nil, makeFSErr
-		}
+	// no filesystem - create it
+	klog.Infof("Creating FS %s on device %s", fsType, device)
+	makeFSErr := makeFS(device, fsType)
+	if makeFSErr != nil {
+		return nil, makeFSErr
 	}
 
 	return &csi.NodeStageVolumeResponse{}, nil
@@ -154,8 +158,11 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 func getDeviceInfo(device string) (string, error) {
 	devicePath, err := filepath.EvalSymlinks(device)
 	if err != nil {
+		klog.Errorf("Unable to evaluate symlink for device %s", device)
 		return "", errors.New(err.Error())
 	}
+
+	klog.Info("lsblk -nro FSTYPE ", devicePath)
 	cmd := exec.Command("lsblk", "-nro", "FSTYPE", devicePath)
 	out, err := cmd.Output()
 	exitError, incompleteCmd := err.(*exec.ExitError)
@@ -166,6 +173,7 @@ func getDeviceInfo(device string) (string, error) {
 	reader := bufio.NewReader(bytes.NewReader(out))
 	line, _, err := reader.ReadLine()
 	if err != nil {
+		klog.Errorf("Error occured while trying to read lsblk output")
 		return "", err
 	}
 	return string(line), nil
