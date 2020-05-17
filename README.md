@@ -15,9 +15,6 @@ Before installation, please ensure that you are running a k8s cluster which supp
 
 Openshift/OKD 4:
   - Clone this repository
-  - Modify 010-storageclass.yaml 
-    - change the metadata.name field to something descriptive. This is the storage class name you will consume within your cluster.
-    - change the parameters.storageDomainName: "nfs" to the name of a valid storage domain in your ovirt cluster, that the provisioner user has access to manage.
   - Ensure that you have oc installed locally
   - Run:
     ```
@@ -33,7 +30,60 @@ Openshift/OKD 4:
     oc get pods -n zzz-test
     ```
 
-    
+Examples for StorageClass, PVC and Pod:
+StorageClass:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ovirt-csi-sc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: csi.ovirt.org
+parameters:
+  # the name of the oVirt storage domain. "nfs" is just an example.
+  storageDomainName: "nfs"
+  thinProvisioning: "true"
+```
+
+PVC:
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: 1g-ovirt-cow-disk
+  annotations:
+    volume.beta.kubernetes.io/storage-class: ovirt-csi-sc
+spec:
+  storageClassName: ovirt-csi-sc
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+Pod:
+```yaml
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: testpodwithcsi
+spec:
+  containers:
+  - image: busybox
+    name: testpodwithcsi
+    command: ["sh", "-c", "while true; do ls -la /opt; echo this file system was made availble using ovirt flexdriver; sleep 1m; done"]
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: pv0002
+      mountPath: "/opt"
+  volumes:
+  - name: pv0002
+    persistentVolumeClaim:
+      claimName: 1g-ovirt-cow-disk
+```
+
 Kubernetes:
   - tbc
   
