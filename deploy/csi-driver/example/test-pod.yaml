@@ -6,7 +6,7 @@ spec:
   containers:
   - image: busybox
     name: testpodwithcsi
-    command: ["sh", "-c", "while true; do ls -la /opt; echo this file system was made availble using ovirt flexdriver; sleep 1m; done"]
+    command: ["sh", "-c", "while true; do ls -la /opt; echo this file system was made availble using ovirt-csi-driver; sleep 1m; done"]
     imagePullPolicy: Always
     volumeMounts:
     - name: pv0002
