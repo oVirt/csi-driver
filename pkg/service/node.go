@@ -54,9 +54,10 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	fsType := req.VolumeCapability.GetMount().FsType
 	// no filesystem - create it
 	klog.Infof("Creating FS %s on device %s", fsType, device)
-	makeFSErr := makeFS(device, fsType)
-	if makeFSErr != nil {
-		return nil, makeFSErr
+	err = makeFS(device, fsType)
+	if err != nil {
+		klog.Errorf("Could not create filesystem %s on %s", fsType, device)
+		return nil, err
 	}
 
 	return &csi.NodeStageVolumeResponse{}, nil
