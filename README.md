@@ -123,11 +123,11 @@ The sidecar containers (`csi-external-attacher`, `csi-external-provisioner`, `cs
 
 Get inside the pod's containers:
 ```
-oc -n ovirt-csi-driver rsh -c <pod name> pod/ovirt-csi-node-2nptq
+oc -n ovirt-csi-driver rsh -c <container name> pod/ovirt-csi-node-2nptq
 ```
 
 Watch logs:
 ```
-oc logs pods/ovirt-csi-node-2nptq -n ovirt-csi-driver -c <pod name> | less
+oc logs pods/ovirt-csi-node-2nptq -n ovirt-csi-driver -c <container name> | less
 ```
 
