@@ -10,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -783,26 +782,6 @@ EOF`,
 
 	r.addOwnerLabels(&statefulSet.ObjectMeta, cr)
 	return statefulSet
-}
-
-// generateStorageClass prepares a StorageClass from given template
-func (r *ReconcileOvirtCSIOperator) generateStorageClass(cr *v1alpha1.OvirtCSIOperator) *storagev1.StorageClass {
-	var expected = &storagev1.StorageClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ovirt-csi-sc",
-		},
-		// ObjectMeta will be filled below
-		Provisioner:          driverName,
-		Parameters:           map[string]string{"storageDomainName": "", "thinProvisioning": "true"},
-		ReclaimPolicy:        &reclaimPolicy,
-		MountOptions:         []string{},
-		AllowVolumeExpansion: &allowVolumeExpansion,
-	}
-	expected.Annotations = map[string]string{
-		defaultStorageClassAnnotation: "false",
-	}
-	r.addOwnerLabels(&expected.ObjectMeta, cr)
-	return expected
 }
 
 func (r *ReconcileOvirtCSIOperator) generateCredentialsRequest(cr *v1alpha1.OvirtCSIOperator) (*cloudcredreqv1.CredentialsRequest, error) {
