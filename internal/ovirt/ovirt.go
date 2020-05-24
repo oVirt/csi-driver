@@ -10,16 +10,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type OvirtClient struct {
+type Client struct {
 	connection *ovirtsdk.Connection
 }
 
-func NewOvirtClient() (*OvirtClient, error) {
+func NewClient() (*Client, error) {
 	con, err := newOvirtConnection()
 	if err != nil {
 		return nil, err
 	}
-	return &OvirtClient{connection: con}, nil
+	return &Client{connection: con}, nil
 }
 
 func newOvirtConnection() (*ovirtsdk.Connection, error) {
@@ -45,7 +45,7 @@ func newOvirtConnection() (*ovirtsdk.Connection, error) {
 // GetConnection validates the connection we have is valid and either
 // returns it, or creates a new one in case the connection isn't present
 // or it was invalidated.
-func (o *OvirtClient) GetConnection() (*ovirtsdk.Connection, error) {
+func (o *Client) GetConnection() (*ovirtsdk.Connection, error) {
 	if o.connection == nil || o.connection.Test() != nil {
 		return newOvirtConnection()
 	}
