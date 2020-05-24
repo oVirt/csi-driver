@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	ovirt "github.com/ovirt/csi-driver/internal"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
 	"k8s.io/klog"
@@ -19,7 +20,7 @@ import (
 
 type NodeService struct {
 	nodeId      string
-	ovirtClient *OvirtClient
+	ovirtClient *ovirt.OvirtClient
 }
 
 var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
