@@ -1,6 +1,7 @@
 package service
 
 import (
+	ovirt "github.com/ovirt/csi-driver/internal"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -16,12 +17,12 @@ type OvirtCSIDriver struct {
 	*ControllerService
 	*NodeService
 	nodeId      string
-	ovirtClient *OvirtClient
+	ovirtClient *ovirt.OvirtClient
 	Client      client.Client
 }
 
 // NewOvirtCSIDriver creates a driver instance
-func NewOvirtCSIDriver(ovirtClient *OvirtClient, client client.Client, nodeId string) *OvirtCSIDriver {
+func NewOvirtCSIDriver(ovirtClient *ovirt.OvirtClient, client client.Client, nodeId string) *OvirtCSIDriver {
 	d := OvirtCSIDriver{
 		IdentityService:   &IdentityService{},
 		ControllerService: &ControllerService{ovirtClient: ovirtClient, client: client},
