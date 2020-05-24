@@ -9,11 +9,10 @@ require (
 	github.com/onsi/ginkgo v1.10.2
 	github.com/onsi/gomega v1.7.0
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
-	github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 	github.com/openshift/cloud-credential-operator v0.0.0-20200303191255-cc686af9c1b9
 	github.com/openshift/library-go v0.0.0-20200120084036-bb27e57e2f2b
 	github.com/operator-framework/operator-sdk v0.14.0
-	github.com/ovirt/go-ovirt v4.3.4+incompatible
+	github.com/ovirt/go-ovirt v0.0.0-20200428093010-9bcc4fd4e6c0
 	github.com/spf13/pflag v1.0.5
 	go.etcd.io/etcd v3.3.18+incompatible
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
