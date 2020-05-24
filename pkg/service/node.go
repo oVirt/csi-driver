@@ -38,7 +38,13 @@ func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, e
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
+	conn, err := n.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
 
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
@@ -68,7 +74,12 @@ func (n *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
+	conn, err := n.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
 
 	targetPath := req.GetTargetPath()
 	err = os.MkdirAll(targetPath, 0750)

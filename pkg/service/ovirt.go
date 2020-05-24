@@ -42,6 +42,17 @@ func newOvirtConnection() (*ovirtsdk.Connection, error) {
 
 }
 
+// GetConnection validates the connection we have is valid and either
+// returns it, or creates a new one in case the connection isn't present
+// or it was invalidated.
+func (o *OvirtClient) GetConnection() (*ovirtsdk.Connection, error) {
+	if o.connection == nil || o.connection.Test() != nil {
+		return newOvirtConnection()
+	}
+
+	return o.connection, nil
+}
+
 var defaultOvirtConfigEnvVar = "OVIRT_CONFIG"
 var defaultOvirtConfigPath = filepath.Join(os.Getenv("HOME"), ".ovirt", "ovirt-config.yaml")
 
