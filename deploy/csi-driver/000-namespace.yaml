@@ -6,5 +6,4 @@ metadata:
     openshift.io/node-selector: ""
   labels:
     name: ovirt-csi-driver
-    openshift.io/run-level: "1"
 
