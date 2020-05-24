@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	ovirt "github.com/ovirt/csi-driver/internal"
+	"github.com/ovirt/csi-driver/internal/ovirt"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 
 	"golang.org/x/net/context"
@@ -21,7 +21,7 @@ const (
 
 //ControllerService implements the controller interface
 type ControllerService struct {
-	ovirtClient *ovirt.OvirtClient
+	ovirtClient *ovirt.Client
 	client      client.Client
 }
 

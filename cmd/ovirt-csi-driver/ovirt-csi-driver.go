@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	ovirt "github.com/ovirt/csi-driver/internal"
+	"github.com/ovirt/csi-driver/internal/ovirt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -41,7 +41,7 @@ func handle() {
 	}
 	klog.V(2).Infof("Driver vendor %v %v", service.VendorName, service.VendorVersion)
 
-	ovirtClient, err := ovirt.NewOvirtClient()
+	ovirtClient, err := ovirt.NewClient()
 	if err != nil {
 		klog.Fatalf("Failed to initialize ovirt client %s", err)
 	}
