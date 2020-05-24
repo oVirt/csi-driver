@@ -156,7 +156,7 @@ func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 	klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
 	conn, err := c.ovirtClient.GetConnection()
 	if err != nil {
-		klog.Errorf("Failed to get ovirt client connection ", err)
+		klog.Errorf("Failed to get ovirt client connection")
 		return nil, err
 	}
 
