@@ -30,8 +30,8 @@ Openshift/OKD 4:
     oc get pods -n zzz-test
     ```
 
-Examples for StorageClass, PVC and Pod:
-StorageClass:
+## Examples for StorageClass, PVC and Pod:
+### StorageClass:
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -46,7 +46,7 @@ parameters:
   thinProvisioning: "true"
 ```
 
-PVC:
+### PVC:
 ```yaml
 kind: PersistentVolumeClaim
 apiVersion: v1
@@ -63,7 +63,7 @@ spec:
       storage: 1Gi
 ```
 
-Pod:
+### Pod:
 ```yaml
 apiVersion: v1 
 kind: Pod 
