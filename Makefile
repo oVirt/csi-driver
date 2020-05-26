@@ -26,8 +26,11 @@ build-operator:
 
 
 .PHONY: verify
-verify:
+verify: fmt vet
+
+fmt:
 	hack/verify-gofmt.sh
+vet:
 	hack/verify-govet.sh
 
 .PHONY: image
