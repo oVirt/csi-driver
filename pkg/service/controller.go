@@ -162,8 +162,8 @@ func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 
 	attachment, err := diskAttachmentByVmAndDisk(conn, req.NodeId, req.VolumeId)
 	if err != nil {
-		klog.Errorf("Failed to get disk attachment %s for VM %s", req.VolumeId, req.NodeId)
-		return nil, err
+		klog.Errorf("Failed to get disk attachment %s for VM %s, returning OK", req.VolumeId, req.NodeId)
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 	_, err = conn.SystemService().VmsService().VmService(req.NodeId).
 		DiskAttachmentsService().
