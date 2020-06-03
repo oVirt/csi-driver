@@ -46,7 +46,11 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 	}
 
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
-
+	if err != nil {
+		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
+		return nil, err
+	}
+  
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
 	if err != nil {
@@ -80,7 +84,12 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		klog.Errorf("Failed to get ovirt client connection")
 		return nil, err
 	}
+	
 	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
+	if err != nil {
+		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
+		return nil, err
+	}
 
 	targetPath := req.GetTargetPath()
 	err = os.MkdirAll(targetPath, 0750)
