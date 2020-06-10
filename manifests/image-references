@@ -5,8 +5,8 @@ spec:
   - name: ovirt-csi-operator
     from:
       kind: DockerImage
-      Name: quay.io/rgolangh/ovirt-csi-operator
+      Name: quay.io/ovirt/csi-operator
   - name: ovirt-csi-driver
     from:
       kind: DockerImage
-      Name: quay.io/rgolangh/ovirt-csi-driver
+      Name: quay.io/ovirt/csi-driver
