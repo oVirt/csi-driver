@@ -1,6 +1,6 @@
 # Image URL to use all building/pushing image targets
-IMG ?= quay.io/rgolangh/ovirt-csi-driver:latest
-IMG-OPERATOR ?= quay.io/rgolangh/ovirt-csi-operator:latest
+IMG ?= quay.io/ovirt/csi-driver:latest
+IMG-OPERATOR ?= quay.io/ovirt/csi-operator:latest
 
 BINDIR=bin
 #BINDATA=$(BINDIR)/go-bindata

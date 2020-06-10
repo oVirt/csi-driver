@@ -432,7 +432,7 @@ EOF`,
 	mountPropogationType := v1.MountPropagationBidirectional
 	csiDriver := v1.Container{
 		Name:            "ovirt-csi-driver",
-		Image:           "quay.io/rgolangh/ovirt-csi-driver:latest",
+		Image:           "quay.io/ovirt/csi-driver:latest",
 		ImagePullPolicy: v1.PullAlways,
 		SecurityContext: &v1.SecurityContext{
 			Privileged:               boolPtr(true),
@@ -708,7 +708,7 @@ EOF`,
 
 	containers = append(containers, v1.Container{
 		Name:  "ovirt-csi-driver",
-		Image: "quay.io/rgolangh/ovirt-csi-driver:latest",
+		Image: "quay.io/ovirt/csi-driver:latest",
 		Args: []string{
 			"--v=5",
 			"--namespace=" + namespace,
