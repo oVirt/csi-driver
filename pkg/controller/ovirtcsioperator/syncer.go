@@ -3,12 +3,10 @@ package ovirtcsioperator
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
-	configv1 "github.com/openshift/api/config/v1"
 	openshiftapi "github.com/openshift/api/operator/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,15 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	operatorhelpersv1 "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1alpha1helpers "github.com/ovirt/csi-driver/pkg/apis/ovirt/helpers"
@@ -166,18 +161,6 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 	statefulSet, err := r.syncStatefulSet(cr)
 	if err != nil {
 		logf.Log.Error(err, "statefulset")
-		errs = append(errs, err)
-	}
-
-	co, err := r.syncClusterOperator(cr)
-	if err != nil {
-		logf.Log.Error(err, "cluster operator")
-		errs = append(errs, err)
-	}
-
-	err = r.syncClusterOperatorConditions(co, statefulSet, ds)
-	if err != nil {
-		logf.Log.Error(err, "cluster operator sync conditions failed")
 		errs = append(errs, err)
 	}
 
@@ -375,24 +358,6 @@ func (r *ReconcileOvirtCSIOperator) syncCredentialsReuest(cr *v1alpha1.OvirtCSIO
 	return err
 }
 
-func (r *ReconcileOvirtCSIOperator) syncClusterOperator(cr *v1alpha1.OvirtCSIOperator) (*configv1.ClusterOperator, error) {
-	logf.Log.Info("Syncing ClusterOperator")
-
-	co := r.generateClusterOperator(cr)
-	ctx, cancel := r.apiContext()
-	defer cancel()
-	logf.Log.Info(fmt.Sprintf("Cluster operator: %v", co))
-
-	_, _, err := resourceapply.ApplyClusterOperator(ctx, r.client, co)
-	logf.Log.Error(err, "error in Syncing ClusterOperator")
-	if !errors.IsAlreadyExists(err) {
-
-		return nil, err
-	}
-
-	return co, nil
-}
-
 func (r *ReconcileOvirtCSIOperator) removeUnexpectedStorageClasses(cr *v1alpha1.OvirtCSIOperator, expectedClasses sets.String) []error {
 	list := &storagev1.StorageClassList{}
 	opts := client.ListOptions{}
@@ -483,151 +448,6 @@ func (r *ReconcileOvirtCSIOperator) syncConditions(instance *v1alpha1.OvirtCSIOp
 
 	v1alpha1helpers.SetOperatorCondition(&instance.Status.Conditions, syncSuccessfulCondition)
 	r.client.Update(ctx, instance)
-}
-
-func (r *ReconcileOvirtCSIOperator) syncClusterOperatorConditions(co *configv1.ClusterOperator, sf *appsv1.StatefulSet, ds *appsv1.DaemonSet) error {
-	logf.Log.Info("sync ClusterOperator conditions")
-	targetLevel := os.Getenv("RELEASE_VERSION")
-	logf.Log.Info(fmt.Sprintf("Target level %s", targetLevel))
-
-	ctx, cancel := r.apiContext()
-	defer cancel()
-	logf.Log.Info(fmt.Sprintf("Updating CSI CVO: %v", co))
-	existing := &configv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: co.Name}}
-	err := r.client.Get(ctx, types.NamespacedName{Name: co.Name}, existing)
-	if err != nil {
-		logf.Log.Error(err, fmt.Sprintf("CO %v fetch failed", existing))
-		return err
-	}
-
-	reachedAvailable := false
-
-	progressing := []string{}
-	dsProgrssing := false
-	dsAvailable := false
-
-	if ds.Status.CurrentNumberScheduled < ds.Status.DesiredNumberScheduled {
-		progressing = append(progressing, fmt.Sprintf("DaemonSet %q is being scheduled (%d out of %d scheduled)", ds.Name, ds.Status.UpdatedNumberScheduled, ds.Status.DesiredNumberScheduled))
-		dsProgrssing = true
-		dsAvailable = false
-	}
-	if ds.Status.NumberUnavailable > 0 {
-		progressing = append(progressing, fmt.Sprintf("DaemonSet %q is not fully available (awaiting %d nodes)", ds.Name, ds.Status.NumberUnavailable))
-		dsProgrssing = true
-		dsAvailable = true
-	}
-	if ds.Status.NumberReady == 0 {
-		progressing = append(progressing, fmt.Sprintf("DaemonSet %q is not yet scheduled on any nodes", ds.Name))
-		dsProgrssing = true
-		dsAvailable = false
-	} else {
-		progressing = append(progressing, fmt.Sprintf("DaemonSet %q is available", ds.Name))
-		dsProgrssing = true
-		dsAvailable = true
-	}
-	if ds.Generation > ds.Status.ObservedGeneration {
-		progressing = append(progressing, fmt.Sprintf("DaemonSet %q update is being processed (generation %d, observed generation %d)", ds.Name, ds.Generation, ds.Status.ObservedGeneration))
-		dsProgrssing = true
-		dsAvailable = true
-	}
-	if ds.Status.NumberReady == ds.Status.DesiredNumberScheduled {
-		dsProgrssing = false
-		dsAvailable = true
-	}
-
-	sfProgrssing := false
-	sfAvailable := false
-
-	if sf.Status.ReadyReplicas < *sf.Spec.Replicas {
-		sfAvailable = false
-		sfProgrssing = true
-		progressing = append(progressing, fmt.Sprintf("StatefulSet %q with CSI driver needs %v but has %v ready.", sf.Name, sf.Status.ReadyReplicas, sf.Status.Replicas))
-	}
-	if sf.Status.ReadyReplicas == 0 {
-		sfAvailable = false
-		sfProgrssing = true
-		progressing = append(progressing, fmt.Sprintf("StatefulSet %q does not have any replicas ready.", sf.Name))
-	}
-	if sf.Status.ReadyReplicas > 0 {
-		sfAvailable = true
-		sfProgrssing = true
-	}
-	if sf.Status.ReadyReplicas == sf.Status.Replicas {
-		sfAvailable = true
-		sfProgrssing = false
-	}
-
-	if sfAvailable && dsAvailable {
-		reachedAvailable = true
-	}
-
-	if sfProgrssing && !sfAvailable {
-		logf.Log.Info("sf progressing but not available")
-
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:   configv1.OperatorDegraded,
-			Status: configv1.ConditionTrue,
-			Reason: "Some StatefulSets are not ready",
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	} else {
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:   configv1.OperatorDegraded,
-			Status: configv1.ConditionFalse,
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	}
-	if dsProgrssing && !dsAvailable {
-		logf.Log.Info("sf progressing but not available")
-
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:   configv1.OperatorDegraded,
-			Status: configv1.ConditionTrue,
-			Reason: "Some DaemonSets are not ready",
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	} else {
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:   configv1.OperatorDegraded,
-			Status: configv1.ConditionFalse,
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	}
-
-	if reachedAvailable {
-		logf.Log.Info("operator available")
-
-		existing.Status.Versions = []configv1.OperandVersion{
-			{
-				Name:    "operator",
-				Version: targetLevel,
-			},
-		}
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:   configv1.OperatorAvailable,
-			Status: configv1.ConditionTrue,
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	}
-
-	for _, p := range progressing {
-		condition := configv1.ClusterOperatorStatusCondition{
-			Type:    configv1.OperatorProgressing,
-			Status:  configv1.ConditionTrue,
-			Reason:  "Deploying",
-			Message: p,
-		}
-		operatorhelpersv1.SetStatusCondition(&existing.Status.Conditions, condition)
-	}
-
-	logf.Log.Info(fmt.Sprintf("Updating CSI CVO existing: %v", existing))
-
-	if err := r.client.Status().Update(ctx, existing); err != nil {
-		logf.Log.Error(err, "CO Update failed")
-		return err
-	}
-
-	return nil
 }
 
 func (r *ReconcileOvirtCSIOperator) syncStatus(oldInstance, newInstance *v1alpha1.OvirtCSIOperator) error {

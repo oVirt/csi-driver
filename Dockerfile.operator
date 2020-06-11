@@ -7,7 +7,6 @@ ENV OPERATOR=/usr/local/bin/csi-operator \
 # install operator binary
 COPY bin/ovirt-csi-operator ${OPERATOR}
 COPY manifests /manifests
-LABEL io.openshift.release.operator=true
 
 USER ${USER_UID}
 ENTRYPOINT ["/usr/local/bin/entrypoint"]

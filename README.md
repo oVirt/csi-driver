@@ -1,6 +1,7 @@
 # oVirt CSI driver
 
-[![Docker Repository on Quay](https://quay.io/repository/ovirt/csi-driver/status "Docker Repository on Quay")](https://quay.io/repository/ovirt/csi-driver)
+CSI operator [![Docker Repository on Quay](https://quay.io/repository/ovirt/csi-operator/status "Docker Repository on Quay")](https://quay.io/repository/ovirt/csi-operator) | 
+CSI driver [![Docker Repository on Quay](https://quay.io/repository/ovirt/csi-driver/status "Docker Repository on Quay")](https://quay.io/repository/ovirt/csi-driver)
 
 Implementation of a CSI driver for oVirt.
 

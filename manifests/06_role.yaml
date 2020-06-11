@@ -35,17 +35,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - "clusteroperators.config.openshift.io"
-  resources:
-  - "*"
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-- apiGroups:
   - "dnses.config.openshift.io"
   resources:
   - "*"

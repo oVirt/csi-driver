@@ -3,9 +3,7 @@ package ovirtcsioperator
 import (
 	"path"
 	"regexp"
-	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -846,35 +844,6 @@ func (r *ReconcileOvirtCSIOperator) generateCSIDriver(cr *v1alpha1.OvirtCSIOpera
 		},
 	}
 	r.addOwnerLabels(&expected.ObjectMeta, cr)
-	return expected
-}
-func (r *ReconcileOvirtCSIOperator) generateClusterOperator(cr *v1alpha1.OvirtCSIOperator) *configv1.ClusterOperator {
-
-	expected := &configv1.ClusterOperator{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ClusterOperator",
-			APIVersion: "config.openshift.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ovirt-csi",
-			Namespace: namespace,
-		},
-		Spec: configv1.ClusterOperatorSpec{},
-		Status: configv1.ClusterOperatorStatus{
-			Conditions: []configv1.ClusterOperatorStatusCondition{{
-				Type:               configv1.OperatorProgressing,
-				Status:             configv1.ConditionTrue,
-				LastTransitionTime: metav1.NewTime(time.Now()),
-				Message:            "ovirt-csi operator created",
-			}},
-			Versions: []configv1.OperandVersion{
-				{
-					Name:    "operator",
-					Version: "0.0.1-snapshot",
-				},
-			},
-		},
-	}
 	return expected
 }
 

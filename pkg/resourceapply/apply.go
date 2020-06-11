@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	configv1 "github.com/openshift/api/config/v1"
-
 	cloudcredreqv1 "github.com/openshift/cloud-credential-operator/pkg/apis/cloudcredential/v1"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	appsv1 "k8s.io/api/apps/v1"
@@ -300,24 +298,6 @@ func ApplyCredentialsRequest(ctx context.Context, client client.Client, required
 			return nil, false, err
 		}
 		logf.Log.Info(fmt.Sprintf("Created CredentialsRequest %s", required.Name))
-		return required, true, nil
-	}
-
-	return nil, false, err
-}
-
-// ApplyClusterOperator applies the cluster operator object
-func ApplyClusterOperator(ctx context.Context, client client.Client, required *configv1.ClusterOperator) (*configv1.ClusterOperator, bool, error) {
-	existing := &configv1.ClusterOperator{}
-	err := client.Get(ctx, types.NamespacedName{Name: required.Name, Namespace: required.Namespace}, existing)
-	logf.Log.Info(fmt.Sprintf("Cluster operator: error %v", err))
-	if err != nil && apierrors.IsNotFound(err) {
-		err := client.Create(ctx, required)
-		logf.Log.Info(fmt.Sprintf("Created ClusterOperator %v", required))
-
-		if err != nil {
-			return nil, false, err
-		}
 		return required, true, nil
 	}
 
