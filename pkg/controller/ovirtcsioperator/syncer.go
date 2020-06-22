@@ -136,11 +136,7 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriverDeployment(cr *v1alpha1.OvirtCS
 		logf.Log.Error(err, "CSI Driver")
 		errs = append(errs, err)
 	}
-	err = r.syncStorageClass(cr)
-	if err != nil {
-		logf.Log.Error(err, "Storage class")
-		errs = append(errs, err)
-	}
+
 	err = r.syncCredentialsReuest(cr)
 	if err != nil {
 		logf.Log.Error(err, "Cloud creds")
@@ -347,17 +343,6 @@ func (r *ReconcileOvirtCSIOperator) syncCSIDriver(cr *v1alpha1.OvirtCSIOperator)
 	ctx, cancel := r.apiContext()
 	defer cancel()
 	_, _, err := resourceapply.ApplyCSIDriver(ctx, r.client, sc)
-
-	return err
-}
-
-func (r *ReconcileOvirtCSIOperator) syncStorageClass(cr *v1alpha1.OvirtCSIOperator) error {
-	logf.Log.Info("Syncing StorageClass")
-
-	sc := r.generateStorageClass(cr)
-	ctx, cancel := r.apiContext()
-	defer cancel()
-	_, _, err := resourceapply.ApplyStorageClass(ctx, r.client, sc)
 
 	return err
 }
