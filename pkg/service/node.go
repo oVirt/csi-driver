@@ -27,12 +27,12 @@ var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 }
 
-func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, error) {
+func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, error) {
 	switch diskInterface {
 	case ovirtsdk.DISKINTERFACE_VIRTIO:
-		return "/dev/disk/by-id/virtio-" + id, nil
+		return "/dev/disk/by-id/virtio-", nil
 	case ovirtsdk.DISKINTERFACE_VIRTIO_SCSI:
-		return "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_" + id, nil
+		return "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_", nil
 	}
 	return "", errors.New("device type is unsupported")
 }
@@ -165,12 +165,13 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 	}
 	klog.Infof("Extracted disk ID from PVC %s", d.MustId())
 
-	device, err := devFromVolumeId(d.MustId(), attachment.MustInterface())
+	baseDevicePath, err := baseDevicePathByInterface(attachment.MustInterface())
 	if err != nil {
 		return "", err
 	}
 
 	// verify the device path exists
+	device := baseDevicePath + d.MustId()
 	_, err = os.Stat(device)
 	if err == nil {
 		klog.Infof("Device path %s exists", device)
@@ -179,7 +180,7 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 
 	if os.IsNotExist(err) {
 		// try with short disk ID, where the serial ID is only 20 chars long (controlled by udev)
-		shortDevice := device[:len(device)-20]
+		shortDevice := baseDevicePath + d.MustId()[:20]
 		_, err = os.Stat(shortDevice)
 		if err == nil {
 			klog.Infof("Device path %s exists", shortDevice)
