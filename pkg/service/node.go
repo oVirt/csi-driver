@@ -159,20 +159,35 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 
 	klog.Infof("Extracting pvc volume name %s", volumeID)
 	disk, _ := conn.FollowLink(attachment.MustDisk())
-	diskID := ""
-	if disk, ok := disk.(*ovirtsdk.Disk); !ok {
-		return "", errors.New("Couldn't retrieve disk from attachemnt")
-	} else {
-		diskID = disk.MustId()[:20]
-		klog.Infof("Extracted pvc volume name %s", diskID)
+	d, ok := disk.(*ovirtsdk.Disk)
+	if !ok {
+		return "", errors.New("couldn't retrieve disk from attachment")
 	}
+	klog.Infof("Extracted disk ID from PVC %s", d.MustId())
 
-	device, err := devFromVolumeId(diskID, attachment.MustInterface())
+	device, err := devFromVolumeId(d.MustId(), attachment.MustInterface())
 	if err != nil {
 		return "", err
 	}
 
-	return device, nil
+	// verify the device path exists
+	_, err = os.Stat(device)
+	if err == nil {
+		klog.Infof("Device path %s exists", device)
+		return device, nil
+	}
+
+	if os.IsNotExist(err) {
+		// try with short disk ID, where the serial ID is only 20 chars long (controlled by udev)
+		shortDevice := device[:len(device)-20]
+		_, err = os.Stat(shortDevice)
+		if err == nil {
+			klog.Infof("Device path %s exists", shortDevice)
+			return shortDevice, nil
+		}
+	}
+	klog.Errorf("Device path for disk ID %s does not exists", d.MustId())
+	return "", errors.New("device was not found")
 }
 
 // getDeviceInfo will return the first Device which is a partition and its filesystem.
