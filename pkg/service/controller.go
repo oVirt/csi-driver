@@ -4,7 +4,9 @@ import (
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/ovirt/csi-driver/internal/ovirt"
 	ovirtsdk "github.com/ovirt/go-ovirt"
+
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,7 +21,7 @@ const (
 
 //ControllerService implements the controller interface
 type ControllerService struct {
-	ovirtClient *OvirtClient
+	ovirtClient *ovirt.Client
 	client      client.Client
 }
 
@@ -32,7 +34,13 @@ var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("Creating disk %s", req.Name)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
-	diskByName, err := c.ovirtClient.connection.SystemService().DisksService().List().Search(req.Name).Send()
+	conn, err := c.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	diskByName, err := conn.SystemService().DisksService().List().Search(req.Name).Send()
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +77,7 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, err
 	}
 
-	createDisk, err := c.ovirtClient.connection.SystemService().DisksService().
+	createDisk, err := conn.SystemService().DisksService().
 		Add().
 		Disk(disk).
 		Send()
@@ -90,9 +98,15 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 func (c *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.Infof("Removing disk %s", req.VolumeId)
 	// idempotence first - see if disk already exists, ovirt creates disk by name(alias in ovirt as well)
-	diskService := c.ovirtClient.connection.SystemService().DisksService().DiskService(req.VolumeId)
+	conn, err := c.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
 
-	_, err := diskService.Get().Send()
+	diskService := conn.SystemService().DisksService().DiskService(req.VolumeId)
+
+	_, err = diskService.Get().Send()
 	// if doesn't exists we're done
 	if err != nil {
 		return &csi.DeleteVolumeResponse{}, nil
@@ -111,7 +125,13 @@ func (c *ControllerService) ControllerPublishVolume(
 	ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 
 	klog.Infof("Attaching Disk %s to VM %s", req.VolumeId, req.NodeId)
-	vmService := c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId)
+	conn, err := c.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	vmService := conn.SystemService().VmsService().VmService(req.NodeId)
 
 	attachmentBuilder := ovirtsdk.NewDiskAttachmentBuilder().
 		DiskBuilder(ovirtsdk.NewDiskBuilder().Id(req.VolumeId)).
@@ -119,7 +139,7 @@ func (c *ControllerService) ControllerPublishVolume(
 		Bootable(false).
 		Active(true)
 
-	_, err := vmService.
+	_, err = vmService.
 		DiskAttachmentsService().
 		Add().
 		Attachment(attachmentBuilder.MustBuild()).
@@ -134,11 +154,18 @@ func (c *ControllerService) ControllerPublishVolume(
 //ControllerUnpublishVolume detaches the disk from the VM.
 func (c *ControllerService) ControllerUnpublishVolume(_ context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.Infof("Detaching Disk %s from VM %s", req.VolumeId, req.NodeId)
-	attachment, err := diskAttachmentByVmAndDisk(c.ovirtClient.connection, req.NodeId, req.VolumeId)
+	conn, err := c.ovirtClient.GetConnection()
 	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
 		return nil, err
 	}
-	_, err = c.ovirtClient.connection.SystemService().VmsService().VmService(req.NodeId).
+
+	attachment, err := diskAttachmentByVmAndDisk(conn, req.NodeId, req.VolumeId)
+	if err != nil {
+		klog.Errorf("Failed to get disk attachment %s for VM %s, returning OK", req.VolumeId, req.NodeId)
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
+	}
+	_, err = conn.SystemService().VmsService().VmService(req.NodeId).
 		DiskAttachmentsService().
 		AttachmentService(attachment.MustId()).
 		Remove().
