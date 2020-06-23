@@ -12,6 +12,7 @@ import (
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/ovirt/csi-driver/internal/ovirt"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
 	"k8s.io/klog"
@@ -19,26 +20,36 @@ import (
 
 type NodeService struct {
 	nodeId      string
-	ovirtClient *OvirtClient
+	ovirtClient *ovirt.Client
 }
 
 var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 }
 
-func devFromVolumeId(id string, diskInterface ovirtsdk.DiskInterface) (string, error) {
+func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, error) {
 	switch diskInterface {
 	case ovirtsdk.DISKINTERFACE_VIRTIO:
-		return "/dev/disk/by-id/virtio-" + id, nil
+		return "/dev/disk/by-id/virtio-", nil
 	case ovirtsdk.DISKINTERFACE_VIRTIO_SCSI:
-		return "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_" + id, nil
+		return "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_", nil
 	}
 	return "", errors.New("device type is unsupported")
 }
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
+	conn, err := n.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
+	if err != nil {
+		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
+		return nil, err
+	}
 
 	// is there a filesystem on this device?
 	filesystem, err := getDeviceInfo(device)
@@ -68,7 +79,17 @@ func (n *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 }
 
 func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, n.ovirtClient.connection)
+	conn, err := n.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
+	if err != nil {
+		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
+		return nil, err
+	}
 
 	targetPath := req.GetTargetPath()
 	err = os.MkdirAll(targetPath, 0750)
@@ -138,20 +159,36 @@ func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection)
 
 	klog.Infof("Extracting pvc volume name %s", volumeID)
 	disk, _ := conn.FollowLink(attachment.MustDisk())
-	diskID := ""
-	if disk, ok := disk.(*ovirtsdk.Disk); !ok {
-		return "", errors.New("Couldn't retrieve disk from attachemnt")
-	} else {
-		diskID = disk.MustId()[:20]
-		klog.Infof("Extracted pvc volume name %s", diskID)
+	d, ok := disk.(*ovirtsdk.Disk)
+	if !ok {
+		return "", errors.New("couldn't retrieve disk from attachment")
 	}
+	klog.Infof("Extracted disk ID from PVC %s", d.MustId())
 
-	device, err := devFromVolumeId(diskID, attachment.MustInterface())
+	baseDevicePath, err := baseDevicePathByInterface(attachment.MustInterface())
 	if err != nil {
 		return "", err
 	}
 
-	return device, nil
+	// verify the device path exists
+	device := baseDevicePath + d.MustId()
+	_, err = os.Stat(device)
+	if err == nil {
+		klog.Infof("Device path %s exists", device)
+		return device, nil
+	}
+
+	if os.IsNotExist(err) {
+		// try with short disk ID, where the serial ID is only 20 chars long (controlled by udev)
+		shortDevice := baseDevicePath + d.MustId()[:20]
+		_, err = os.Stat(shortDevice)
+		if err == nil {
+			klog.Infof("Device path %s exists", shortDevice)
+			return shortDevice, nil
+		}
+	}
+	klog.Errorf("Device path for disk ID %s does not exists", d.MustId())
+	return "", errors.New("device was not found")
 }
 
 // getDeviceInfo will return the first Device which is a partition and its filesystem.

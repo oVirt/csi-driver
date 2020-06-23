@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ovirt-csi-driver
+  name: openshift-ovirt-csi-operator
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -46,10 +46,6 @@ kind: ClusterRole
 metadata:
   name: ovirt-csi-controller-cr
 rules:
-  # Allow managing ember resources
-  - apiGroups: ['ember-csi.io']
-    resources: ['*']
-    verbs: ['*']
   # Allow listing and creating CRDs
   - apiGroups: ['apiextensions.k8s.io']
     resources: ['customresourcedefinitions']

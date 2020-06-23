@@ -1,5 +1,6 @@
 # Image URL to use all building/pushing image targets
-IMG ?= quay.io/rgolangh/ovirt-csi-driver:latest
+IMG ?= quay.io/ovirt/csi-driver:latest
+IMG-OPERATOR ?= quay.io/ovirt/csi-operator:latest
 
 BINDIR=bin
 #BINDATA=$(BINDIR)/go-bindata
@@ -16,17 +17,29 @@ test:
 
 # Build the binary
 .PHONY: build
-build: 
-	go build -o $(BINDIR)/ovirt-csi-driver -ldflags '-X main.version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-driver
+build: build-driver build-operator
+
+build-driver:
+	go build -o $(BINDIR)/ovirt-csi-driver -ldflags '-X version.Version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/ovirt-csi-driver
+build-operator:
+	go build -o $(BINDIR)/ovirt-csi-operator -ldflags '-X version.Version=$(REV) -extldflags "-static"' github.com/ovirt/csi-driver/cmd/manager
+
 
 .PHONY: verify
-verify:
+verify: fmt vet
+
+fmt:
 	hack/verify-gofmt.sh
+vet:
 	hack/verify-govet.sh
 
 .PHONY: image
-image:
+image: image-driver image-operator
+
+image-driver:
 	podman build . -f Dockerfile -t ${IMG}
+image-operator:
+	podman build . -f Dockerfile.operator -t ${IMG-OPERATOR}
 
 .PHONY: vendor
 vendor:
@@ -34,5 +47,5 @@ vendor:
 	go mod vendor
 	go mod verify
 
-#$(BINDATA):
-#	go build -o $(BINDATA) ./vendor/github.com/jteeuwen/go-bindata/go-bindata
+$(BINDATA):
+	go build -o $(BINDATA) ./vendor/github.com/jteeuwen/go-bindata/go-bindata

@@ -84,7 +84,7 @@ spec:
               mountPath: /csi
         - name: ovirt-csi-driver
           imagePullPolicy: Always
-          image: quay.io/rgolangh/ovirt-csi-driver:latest
+          image: quay.io/ovirt/csi-driver:latest
           args:
             - "--endpoint=unix:/csi/csi.sock"
             - "--namespace=ovirt-csi-driver"
