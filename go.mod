@@ -4,25 +4,33 @@ go 1.13
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/go-logr/zapr v0.1.1 // indirect
+	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
+	github.com/google/go-cmp v0.3.1 // indirect
+	github.com/hashicorp/golang-lru v0.5.3 // indirect
+	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/onsi/ginkgo v1.10.2
 	github.com/onsi/gomega v1.7.0
-	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
-	github.com/openshift/cloud-credential-operator v0.0.0-20200303191255-cc686af9c1b9
-	github.com/openshift/library-go v0.0.0-20200120084036-bb27e57e2f2b
-	github.com/operator-framework/operator-sdk v0.14.0
 	github.com/ovirt/go-ovirt v0.0.0-20200428093010-9bcc4fd4e6c0
-	github.com/spf13/pflag v1.0.5
-	go.etcd.io/etcd v3.3.18+incompatible
+	github.com/prometheus/client_golang v1.2.1 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
+	go.uber.org/atomic v1.4.0 // indirect
+	go.uber.org/zap v1.10.0 // indirect
+	golang.org/x/crypto v0.0.0-20191028145041-f83a4685e152 // indirect
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
+	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/grpc v1.26.0
 	gopkg.in/yaml.v2 v2.2.7
-	k8s.io/api v0.17.1
+	k8s.io/api v0.17.1 // indirect
+	k8s.io/apiextensions-apiserver v0.17.1 // indirect
 	k8s.io/apimachinery v0.17.1
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0
+	k8s.io/kube-openapi v0.0.0-20190918143330-0270cf2f1c1d // indirect
 	k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
 	sigs.k8s.io/controller-runtime v0.4.0
 )
