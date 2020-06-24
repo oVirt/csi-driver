@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ovirt/csi-driver/internal/ovirt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
@@ -40,7 +41,7 @@ func handle() {
 	}
 	klog.V(2).Infof("Driver vendor %v %v", service.VendorName, service.VendorVersion)
 
-	ovirtClient, err := service.NewOvirtClient()
+	ovirtClient, err := ovirt.NewClient()
 	if err != nil {
 		klog.Fatalf("Failed to initialize ovirt client %s", err)
 	}
@@ -61,7 +62,7 @@ func handle() {
 		klog.Fatal(err)
 	}
 
-	// get the node onject by name and pass the VM ID because it is the node
+	// get the node object by name and pass the VM ID because it is the node
 	// id from the storage perspective. It will be used for attaching disks
 	var nodeId string
 	clientSet, err := kubernetes.NewForConfig(restConfig)
