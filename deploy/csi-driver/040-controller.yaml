@@ -36,15 +36,17 @@ spec:
                   name: ovirt-credentials
                   key: ovirt_password
             - name: OVIRT_CAFILE
-              valueFrom:
-                secretKeyRef:
-                  name: ovirt-credentials
-                  key: ovirt_cafile
+              value: /tmp/config/ovirt-engine-ca.pem
             - name: OVIRT_INSECURE
               valueFrom:
                 secretKeyRef:
                   name: ovirt-credentials
                   key: ovirt_insecure
+            - name: OVIRT_CA_BUNDLE
+                valueFrom:
+                  secretKeyRef:
+                    name: ovirt-credentials
+                    key: ovirt_ca_bundle
           image: busybox
           command:
             - /bin/sh
@@ -58,6 +60,7 @@ spec:
               ovirt_cafile: $OVIRT_CAFILE
               ovirt_insecure: $OVIRT_INSECURE
               EOF
+              echo "$OVIRT_CA_BUNDLE" > $OVIRT_CAFILE
           volumeMounts:
             - name: config
               mountPath: /tmp/config
