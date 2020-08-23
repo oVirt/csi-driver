@@ -17,6 +17,7 @@ import (
 const (
 	ParameterStorageDomainName = "storageDomainName"
 	ParameterThinProvisioning  = "thinProvisioning"
+	minimumDiskSize            = 1 * 1024 * 1024
 )
 
 //ControllerService implements the controller interface
@@ -62,11 +63,16 @@ func (c *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// TODO rgolan the default in case of error would be non thin - change it?
 	thinProvisioning, _ := strconv.ParseBool(req.Parameters[ParameterThinProvisioning])
 
+	provisionedSize := req.CapacityRange.GetRequiredBytes()
+	if provisionedSize < minimumDiskSize {
+		provisionedSize = minimumDiskSize
+	}
+
 	// creating the disk
 	disk, err := ovirtsdk.NewDiskBuilder().
 		Name(req.Name).
 		StorageDomainsBuilderOfAny(*ovirtsdk.NewStorageDomainBuilder().Name(req.Parameters[ParameterStorageDomainName])).
-		ProvisionedSize(req.CapacityRange.GetRequiredBytes()).
+		ProvisionedSize(provisionedSize).
 		ReadOnly(false).
 		Format(ovirtsdk.DISKFORMAT_COW).
 		Sparse(thinProvisioning).
