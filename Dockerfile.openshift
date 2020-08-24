@@ -1,9 +1,9 @@
-FROM registry.svc.ci.openshift.org/ocp/builder:rhel-7-golang-1.13 AS builder
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-openshift-4.6 AS builder
 WORKDIR /src/ovirt-csi-driver
 COPY . .
 RUN make build
 
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+FROM registry.svc.ci.openshift.org/ocp/4.6:base
 
 RUN yum install -y e2fsprogs
 COPY --from=builder /src/ovirt-csi-driver/bin/ovirt-csi-driver .
