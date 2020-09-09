@@ -218,18 +218,26 @@ func getDeviceInfo(device string) (string, error) {
 }
 
 func makeFS(device string, fsType string) error {
-	// caution, use -F to force creating the filesystem if it doesn't exit. May not be portable for fs other
-	// than ext family
+	// caution, use force flag when creating the filesystem if it doesn't exit.
 	klog.Infof("Mounting device %s, with FS %s", device, fsType)
-	var force string
-	if strings.HasPrefix(fsType, "ext") {
-		force = "-F"
-	}
 
-	cmd := exec.Command("mkfs", force, "-t", fsType, device)
+	var cmd *exec.Cmd
+	var stdout, stderr bytes.Buffer
+	if strings.HasPrefix(fsType, "ext") {
+		cmd = exec.Command("mkfs", "-F", "-t", fsType, device)
+	} else if strings.HasPrefix(fsType, "xfs") {
+		cmd = exec.Command("mkfs", "-t", fsType, "-f", device)
+	} else {
+		return errors.New(fsType + " is not supported, only xfs and ext are supported")
+	}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
 	err := cmd.Run()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
+		klog.Errorf("stdout: %s", string(stdout.Bytes()))
+		klog.Errorf("stderr: %s", string(stderr.Bytes()))
 		return errors.New(err.Error() + " mkfs failed with " + string(exitError.Error()))
 	}
 
