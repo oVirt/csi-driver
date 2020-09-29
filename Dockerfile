@@ -6,7 +6,7 @@ RUN make build
 
 FROM fedora:31
 
-RUN dnf install -y e2fsprogs
+RUN dnf install -y e2fsprogs xfsprogs
 COPY --from=builder /src/ovirt-csi-driver/bin/ovirt-csi-driver .
 
 ENTRYPOINT ["./ovirt-csi-driver"]
