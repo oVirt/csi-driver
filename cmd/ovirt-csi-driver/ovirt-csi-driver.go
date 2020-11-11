@@ -53,7 +53,8 @@ func handle() {
 	}
 
 	opts := manager.Options{
-		Namespace: *namespace,
+		Namespace:          *namespace,
+		MetricsBindAddress: "0",
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
