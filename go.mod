@@ -4,10 +4,11 @@ go 1.13
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
+	github.com/golang/protobuf v1.3.3
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/onsi/ginkgo v1.10.2
 	github.com/onsi/gomega v1.7.0
-	github.com/ovirt/go-ovirt v0.0.0-20200428093010-9bcc4fd4e6c0
+	github.com/ovirt/go-ovirt v0.0.0-20201023070830-77e357c438d5
 	github.com/prometheus/client_golang v1.2.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/atomic v1.4.0 // indirect
