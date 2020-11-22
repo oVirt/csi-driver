@@ -1,0 +1,15 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: 1g-ovirt-cow-disk-block
+  annotations:
+    volume.beta.kubernetes.io/storage-class: ovirt-csi-sc
+spec:
+  storageClassName: ovirt-csi-sc
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  volumeMode: Block
+

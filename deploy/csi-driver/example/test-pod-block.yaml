@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: testpodwithcsi-block
+spec:
+  containers:
+    - image: busybox
+      name: testpodwithcsi
+      command: ["sh", "-c", "while true; do ls -la /dev/blockdev; echo this block device was made availble using ovirt-csi-driver; sleep 1m; done"]
+      imagePullPolicy: Always
+      volumeDevices:
+        - devicePath: /dev/blockdev
+          name: a-block-dev
+
+  volumes:
+  - name: a-block-dev
+    persistentVolumeClaim:
+      claimName: 1g-ovirt-cow-disk-block
+
