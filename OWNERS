@@ -4,4 +4,5 @@ approvers:
 reviewers:
   - rgolangh
   - bennyz
-
+component: "Storage"
+subcomponent: "oVirt CSI Driver"
