@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -39,6 +41,11 @@ func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, er
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
+	if req.VolumeCapability.GetBlock() != nil {
+		klog.Infof("Volume %s is a block volume, no need for staging", req.VolumeId)
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	conn, err := n.ovirtClient.GetConnection()
 	if err != nil {
 		klog.Errorf("Failed to get ovirt client connection")
@@ -91,8 +98,12 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, err
 	}
 
+	if req.VolumeCapability.GetBlock() != nil {
+		return n.publishBlockVolume(req, device)
+	}
+
 	targetPath := req.GetTargetPath()
-	err = os.MkdirAll(targetPath, 0750)
+	err = os.MkdirAll(targetPath, 0644)
 	if err != nil {
 		return nil, errors.New(err.Error())
 	}
@@ -120,6 +131,29 @@ func (n *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
+}
+
+func (n *NodeService) publishBlockVolume(req *csi.NodePublishVolumeRequest, device string) (*csi.NodePublishVolumeResponse, error) {
+	klog.Infof("Publishing block volume, device: %s, req: %+v", device, req)
+	file, err := os.OpenFile(req.TargetPath, os.O_CREATE, os.FileMode(0644))
+	defer file.Close()
+	if err != nil {
+		if !os.IsExist(err) {
+			return nil, status.Errorf(codes.Internal, "Failed to create targetPath %s, err: %v", req.TargetPath, err)
+		}
+	}
+
+	mounter := mount.New("")
+	err = mounter.Mount(device, req.TargetPath, "", []string{"bind"})
+	if err != nil {
+		if removeErr := os.Remove(req.TargetPath); removeErr != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to remove mount target %v, err: %v, mount error: %v", req.TargetPath, removeErr, err)
+		}
+
+		return nil, status.Errorf(codes.Internal, "Failed to mount %v at %v, err: %v", device, req.TargetPath, err)
+	}
+
+	return &csi.NodePublishVolumeResponse{}, nil
 }
 
 func (n *NodeService) NodeGetVolumeStats(context.Context, *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
