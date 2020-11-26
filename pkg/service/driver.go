@@ -26,7 +26,7 @@ func NewOvirtCSIDriver(ovirtClient *ovirt.Client, client client.Client, nodeId s
 	d := OvirtCSIDriver{
 		IdentityService:   &IdentityService{},
 		ControllerService: &ControllerService{ovirtClient: ovirtClient, client: client},
-		NodeService:       &NodeService{nodeId: nodeId, ovirtClient: ovirtClient},
+		NodeService:       NewNodeService(nodeId, ovirtClient),
 		ovirtClient:       ovirtClient,
 		Client:            client,
 	}
