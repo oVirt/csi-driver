@@ -1,12 +1,11 @@
 package service
 
 import (
-	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -14,29 +13,46 @@ import (
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/ovirt/csi-driver/internal/ovirt"
 	ovirtsdk "github.com/ovirt/go-ovirt"
 	"golang.org/x/net/context"
 	"k8s.io/klog"
-)
 
-type NodeService struct {
-	nodeId      string
-	ovirtClient *ovirt.Client
-}
+	"github.com/ovirt/csi-driver/internal/ovirt"
+)
 
 var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 }
 
-func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, error) {
-	switch diskInterface {
-	case ovirtsdk.DISKINTERFACE_VIRTIO:
-		return "/dev/disk/by-id/virtio-", nil
-	case ovirtsdk.DISKINTERFACE_VIRTIO_SCSI:
-		return "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_", nil
+type NodeService struct {
+	nodeId      string
+	ovirtClient *ovirt.Client
+	deviceLister       deviceLister
+	fsMaker            fsMaker
+	fsMounter          mount.Interface
+	dirMaker           dirMaker
+}
+
+type deviceLister interface{ List() ([]byte, error) }
+type fsMaker interface { Make(device string, fsType string) error }
+type dirMaker interface { Make(path string, perm os.FileMode) error }
+
+func NewNodeService(nodeId string, ovirtClient *ovirt.Client) *NodeService {
+	return &NodeService{
+		nodeId: nodeId,
+		ovirtClient: ovirtClient,
+		deviceLister: deviceListerFunc(func() ([]byte, error) {
+			return exec.Command("lsblk", "-nJo", "SERIAL,PATH,FSTYPE").Output()
+		}),
+		fsMaker: fsMakerFunc(func(device, fsType string) error {
+			return makeFS(device, fsType)
+		}),
+		fsMounter: mount.New(""),
+		dirMaker: dirMakerFunc(func(path string, perm os.FileMode) error {
+			// MkdirAll returns nil if path already exists
+			return os.MkdirAll(path, perm)
+		}),
 	}
-	return "", errors.New("device type is unsupported")
 }
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
@@ -52,29 +68,24 @@ func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolum
 		return nil, err
 	}
 
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn, n.deviceLister)
 	if err != nil {
 		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
 		return nil, err
 	}
 
 	// is there a filesystem on this device?
-	filesystem, err := getDeviceInfo(device)
-	if err != nil {
-		klog.Errorf("Failed to fetch device info for volume %s on node %s", req.VolumeId, n.nodeId)
-		return nil, err
-	}
-	if filesystem != "" {
-		klog.Infof("Detected fs %s, returning", filesystem)
+	if device.FSType != "" {
+		klog.Infof("Detected fs %s, returning", device.FSType)
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
 	fsType := req.VolumeCapability.GetMount().FsType
 	// no filesystem - create it
 	klog.Infof("Creating FS %s on device %s", fsType, device)
-	err = makeFS(device, fsType)
+	err = n.fsMaker.Make(device.Path, fsType)
 	if err != nil {
-		klog.Errorf("Could not create filesystem %s on %s", fsType, device)
+		klog.Errorf("Could not create filesystem %s on %s", fsType, device.Path)
 		return nil, err
 	}
 
@@ -92,27 +103,26 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, err
 	}
 
-	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn)
+	device, err := getDeviceByAttachmentId(req.VolumeId, n.nodeId, conn, n.deviceLister)
 	if err != nil {
 		klog.Errorf("Failed to fetch device by attachment-id for volume %s on node %s", req.VolumeId, n.nodeId)
 		return nil, err
 	}
 
 	if req.VolumeCapability.GetBlock() != nil {
-		return n.publishBlockVolume(req, device)
+		return n.publishBlockVolume(req, device.Path)
 	}
 
 	targetPath := req.GetTargetPath()
-	err = os.MkdirAll(targetPath, 0644)
+	err = n.dirMaker.Make(targetPath, 0644)
 	if err != nil {
 		return nil, errors.New(err.Error())
 	}
 
 	fsType := req.VolumeCapability.GetMount().FsType
 	klog.Infof("Mounting devicePath %s, on targetPath: %s with FS type: %s",
-		device, targetPath, fsType)
-	mounter := mount.New("")
-	err = mounter.Mount(device, targetPath, fsType, []string{})
+		device.Path, targetPath, fsType)
+	err = n.fsMounter.Mount(device.Path, targetPath, fsType, []string{})
 	if err != nil {
 		klog.Errorf("Failed mounting %v", err)
 		return nil, err
@@ -122,9 +132,8 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 }
 
 func (n *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	mounter := mount.New("")
 	klog.Infof("Unmounting %s", req.GetTargetPath())
-	err := mounter.Unmount(req.GetTargetPath())
+	err := n.fsMounter.Unmount(req.GetTargetPath())
 	if err != nil {
 		klog.Infof("Failed to unmount")
 		return nil, err
@@ -185,82 +194,78 @@ func (n *NodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilit
 	return &csi.NodeGetCapabilitiesResponse{Capabilities: caps}, nil
 }
 
-func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection) (string, error) {
+func getDeviceByAttachmentId(volumeID, nodeID string, conn *ovirtsdk.Connection, deviceLister deviceLister) (device, error) {
 	attachment, err := diskAttachmentByVmAndDisk(conn, nodeID, volumeID)
 	if err != nil {
-		return "", err
+		return device{}, err
 	}
 
 	klog.Infof("Extracting pvc volume name %s", volumeID)
 	disk, _ := conn.FollowLink(attachment.MustDisk())
 	d, ok := disk.(*ovirtsdk.Disk)
 	if !ok {
-		return "", errors.New("couldn't retrieve disk from attachment")
+		return device{}, errors.New("couldn't retrieve disk from attachment")
 	}
 	klog.Infof("Extracted disk ID from PVC %s", d.MustId())
 
-	baseDevicePath, err := baseDevicePathByInterface(attachment.MustInterface())
+	// ovirt Disk ID = serial ID of the disk on the OS
+	serialID := d.MustId()
+
+	deviceByID, err := getDeviceBySerialID(serialID, deviceLister)
 	if err != nil {
-		return "", err
+		klog.Errorf("Device with serial ID %s does not exists", serialID)
+		return device{}, errors.New("device was not found")
 	}
-
-	// verify the device path exists
-	device := baseDevicePath + d.MustId()
-	_, err = os.Stat(device)
-	if err == nil {
-		klog.Infof("Device path %s exists", device)
-		return device, nil
-	}
-
-	if os.IsNotExist(err) {
-		// try with short disk ID, where the serial ID is only 20 chars long (controlled by udev)
-		shortDevice := baseDevicePath + d.MustId()[:20]
-		_, err = os.Stat(shortDevice)
-		if err == nil {
-			klog.Infof("Device path %s exists", shortDevice)
-			return shortDevice, nil
-		}
-	}
-	klog.Errorf("Device path for disk ID %s does not exists", d.MustId())
-	return "", errors.New("device was not found")
+	return deviceByID, nil
 }
 
-// getDeviceInfo will return the first Device which is a partition and its filesystem.
-// if the given Device disk has no partition then an empty zero valued device will return
-func getDeviceInfo(device string) (string, error) {
-	devicePath, err := filepath.EvalSymlinks(device)
-	if err != nil {
-		klog.Errorf("Unable to evaluate symlink for device %s", device)
-		return "", errors.New(err.Error())
-	}
+type devices struct {
+	BlockDevices []device `json:"blockdevices"`
+}
 
-	klog.Info("lsblk -nro FSTYPE ", devicePath)
-	cmd := exec.Command("lsblk", "-nro", "FSTYPE", devicePath)
-	out, err := cmd.Output()
+type device struct {
+	SerialID string `json:"serial"`
+	Path     string `json:"path"`
+	FSType   string `json:"fstype"`
+}
+
+// getDeviceBySerialID reads the block devices details, serialID, path, and FS type, and
+// returns the device that matches the serialID.
+func getDeviceBySerialID(serialID string, deviceLister deviceLister) (device, error) {
+	klog.Infof("Get the device details by serialID %s", serialID)
+	klog.Info("lsblk -nJo SERIAL,PATH,FSTYPE")
+
+	out, err := deviceLister.List()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
-		return "", errors.New(err.Error() + "lsblk failed with " + string(exitError.Stderr))
+		return device{}, errors.New(err.Error() + "lsblk failed with " + string(exitError.Stderr))
 	}
 
-	reader := bufio.NewReader(bytes.NewReader(out))
-	line, _, err := reader.ReadLine()
+	devices := devices{}
+	err = json.Unmarshal(out, &devices)
 	if err != nil {
-		klog.Errorf("Error occured while trying to read lsblk output")
-		return "", err
+		klog.Errorf("Failed to parse json output from lsblk: %s", err)
+		return device{}, err
 	}
-	return string(line), nil
+
+	for _, d := range devices.BlockDevices {
+		if d.SerialID == serialID {
+			return d, nil
+		}
+	}
+	return device{}, errors.New("couldn't find device by serial id")
 }
 
-func makeFS(device string, fsType string) error {
+func makeFS(devicePath string, fsType string) error {
 	// caution, use force flag when creating the filesystem if it doesn't exit.
-	klog.Infof("Mounting device %s, with FS %s", device, fsType)
+	klog.Infof("Mounting devicePath %s, with FS %s", devicePath, fsType)
 
 	var cmd *exec.Cmd
 	var stdout, stderr bytes.Buffer
 	if strings.HasPrefix(fsType, "ext") {
-		cmd = exec.Command("mkfs", "-F", "-t", fsType, device)
+		cmd = exec.Command("mkfs", "-F", "-t", fsType, devicePath)
 	} else if strings.HasPrefix(fsType, "xfs") {
-		cmd = exec.Command("mkfs", "-t", fsType, "-f", device)
+		cmd = exec.Command("mkfs", "-t", fsType, "-f", devicePath)
 	} else {
 		return errors.New(fsType + " is not supported, only xfs and ext are supported")
 	}
@@ -288,4 +293,18 @@ func isMountpoint(mountDir string) bool {
 		return false
 	}
 	return true
+}
+
+type deviceListerFunc func() ([]byte, error)
+func (d deviceListerFunc) List() ([]byte, error) {
+	return d()
+}
+type fsMakerFunc func(device, fsType string) error
+func (f fsMakerFunc) Make(device, fsType string) error {
+	return f(device, fsType)
+}
+
+type dirMakerFunc func(path string, perm os.FileMode) error
+func (d dirMakerFunc) Make(path string, perm os.FileMode) error {
+	return d(path, perm)
 }
