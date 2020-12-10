@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -28,6 +29,7 @@ type ControllerService struct {
 var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME, // attach/detach
+	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 }
 
 //CreateVolume creates the disk for the request, unattached from any VM
@@ -208,8 +210,30 @@ func (c *ControllerService) ListSnapshots(context.Context, *csi.ListSnapshotsReq
 }
 
 //ControllerExpandVolume
-func (c *ControllerService) ControllerExpandVolume(context.Context, *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+func (c *ControllerService) ControllerExpandVolume(_ context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	klog.Infof("Expanding volume %v to %v bytes.", req.VolumeId, req.CapacityRange.RequiredBytes)
+
+	conn, err := c.ovirtClient.GetConnection()
+	if err != nil {
+		klog.Errorf("Failed to get ovirt client connection")
+		return nil, err
+	}
+
+	// find diskAttachment and diskAttachmentService by DiskId
+	diskAttachment, diskAttachmentService, _ := diskAttachmentByDisk(conn, req.VolumeId)
+	if diskAttachment == nil || diskAttachmentService == nil {
+		return nil, fmt.Errorf("Failed to find disk attachment %s, returning OK", req.VolumeId)
+	}
+
+	diskAttachment.MustDisk().SetProvisionedSize(req.CapacityRange.RequiredBytes)
+	_, err = diskAttachmentService.Update().DiskAttachment(diskAttachment).Send()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to expand volume %s: %v", req.VolumeId, err)
+	}
+
+	klog.Infof("Expanded Disk %v to %v bytes", req.VolumeId, req.CapacityRange.RequiredBytes)
+
+	return &csi.ControllerExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes, NodeExpansionRequired: true}, nil
 }
 
 //ControllerGetCapabilities

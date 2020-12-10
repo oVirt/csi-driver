@@ -20,3 +20,22 @@ func diskAttachmentByVmAndDisk(connection *ovirtsdk.Connection, vmId string, dis
 	}
 	return nil, fmt.Errorf("failed to find attachment by disk %s for VM %s", diskId, vmId)
 }
+
+func diskAttachmentByDisk(connection *ovirtsdk.Connection, diskId string) (*ovirtsdk.DiskAttachment, *ovirtsdk.DiskAttachmentService, error) {
+	vmsService := connection.SystemService().VmsService()
+	for _, vm := range vmsService.List().MustSend().MustVms().Slice() {
+		vmService := connection.SystemService().VmsService().VmService(vm.MustId())
+		attachments, err := vmService.DiskAttachmentsService().List().Send()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, attachment := range attachments.MustAttachments().Slice() {
+			if attachment.MustId() == diskId {
+				return attachment, vmService.DiskAttachmentsService().AttachmentService(attachment.MustId()), nil
+
+			}
+		}
+	}
+	return nil, nil, fmt.Errorf("failed to find diskAttachment and diskAttachmentService by disk %s", diskId)
+}
