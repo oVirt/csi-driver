@@ -222,7 +222,7 @@ func (c *ControllerService) ControllerExpandVolume(_ context.Context, req *csi.C
 	// find diskAttachment and diskAttachmentService by DiskId
 	diskAttachment, diskAttachmentService, _ := diskAttachmentByDisk(conn, req.VolumeId)
 	if diskAttachment == nil || diskAttachmentService == nil {
-		return nil, fmt.Errorf("Failed to find disk attachment %s, returning OK", req.VolumeId)
+		return nil, fmt.Errorf("Unable to find disk attachment %s", req.VolumeId)
 	}
 
 	diskAttachment.MustDisk().SetProvisionedSize(req.CapacityRange.RequiredBytes)
