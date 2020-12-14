@@ -10,6 +10,8 @@ import (
 	"strings"
 	"fmt"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -129,7 +131,6 @@ func (n *NodeService) NodeGetVolumeStats(context.Context, *csi.NodeGetVolumeStat
 }
 
 func (n *NodeService) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	//fut
 	klog.Infof("Resizing filesystem mounted on %s", req.VolumePath)
 	fsType := req.VolumeCapability.GetMount().FsType
 	klog.Infof("fstype: %s", fsType)
@@ -143,7 +144,7 @@ func (n *NodeService) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	}
 
 	if resizeCmd == "" {
-		return nil, fmt.Errorf("fsType is neither xfs or ext[234]")
+		return nil, status.Error(codes.InvalidArgument, "fsType is neither xfs or ext[234]")
 	}
 
 	device, err := getDeviceByMountPoint(req.VolumePath)
@@ -155,7 +156,7 @@ func (n *NodeService) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 	err = cmd.Run()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
-		return nil, errors.New(err.Error() + " resize failed with " + string(exitError.Error()))
+		return nil, status.Error(codes.Internal, err.Error() + " resize failed with " + string(exitError.Error()))
 	}
 
 	klog.Infof("Resized %s filesystem on device %s)", fsType, device)
@@ -281,14 +282,14 @@ func isMountpoint(mountDir string) bool {
 }
 
 func getDeviceByMountPoint(mp string) (string, error) {
-    out, err := exec.Command("findmnt", "-nfc", mp).Output()
-    if err != nil {
-        return "", fmt.Errorf("Error: %v\n", err)
-    }
+	out, err := exec.Command("findmnt", "-nfc", mp).Output()
+	if err != nil {
+		return "", fmt.Errorf("Error: %v\n", err)
+	}
 
-    s := strings.Fields(string(out))
-    if len(s) < 2 {
-        return "", fmt.Errorf("Could not parse command output: >%s<", string(out))
-    }
-    return s[1], nil
+	s := strings.Fields(string(out))
+	if len(s) < 2 {
+		return "", fmt.Errorf("Could not parse command output: >%s<", string(out))
+	}
+	return s[1], nil
 }

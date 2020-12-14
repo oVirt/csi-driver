@@ -215,24 +215,26 @@ func (c *ControllerService) ControllerExpandVolume(_ context.Context, req *csi.C
 
 	conn, err := c.ovirtClient.GetConnection()
 	if err != nil {
-		klog.Errorf("Failed to get ovirt client connection")
-		return nil, err
+                msg := fmt.Sprintf("Failed to get ovirt client connection")
+		klog.Errorf(msg)
+		return nil, status.Error(codes.Unavailable, msg)
 	}
 
 	// find diskAttachment and diskAttachmentService by DiskId
 	diskAttachment, diskAttachmentService, _ := diskAttachmentByDisk(conn, req.VolumeId)
 	if diskAttachment == nil || diskAttachmentService == nil {
-		return nil, fmt.Errorf("Unable to find disk attachment %s", req.VolumeId)
+                msg := fmt.Sprintf("Unable to find disk attachment for volume %s.", req.VolumeId)
+		klog.Errorf(msg)
+		return nil, status.Error(codes.NotFound, msg)
 	}
 
 	diskAttachment.MustDisk().SetProvisionedSize(req.CapacityRange.RequiredBytes)
 	_, err = diskAttachmentService.Update().DiskAttachment(diskAttachment).Send()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to expand volume %s: %v", req.VolumeId, err)
+		return nil, status.Errorf(codes.ResourceExhausted, "Failed to expand volume %s: %v", req.VolumeId, err)
 	}
 
 	klog.Infof("Expanded Disk %v to %v bytes", req.VolumeId, req.CapacityRange.RequiredBytes)
-
 	return &csi.ControllerExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes, NodeExpansionRequired: true}, nil
 }
 
