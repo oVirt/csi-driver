@@ -43,10 +43,10 @@ spec:
                   name: ovirt-credentials
                   key: ovirt_insecure
             - name: OVIRT_CA_BUNDLE
-                valueFrom:
-                  secretKeyRef:
-                    name: ovirt-credentials
-                    key: ovirt_ca_bundle
+              valueFrom:
+                secretKeyRef:
+                  name: ovirt-credentials
+                  key: ovirt_ca_bundle
           image: busybox
           command:
             - /bin/sh
