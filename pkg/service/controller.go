@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -28,6 +29,7 @@ type ControllerService struct {
 var ControllerCaps = []csi.ControllerServiceCapability_RPC_Type{
 	csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 	csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME, // attach/detach
+	csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 }
 
 //CreateVolume creates the disk for the request, unattached from any VM
@@ -208,8 +210,32 @@ func (c *ControllerService) ListSnapshots(context.Context, *csi.ListSnapshotsReq
 }
 
 //ControllerExpandVolume
-func (c *ControllerService) ControllerExpandVolume(context.Context, *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+func (c *ControllerService) ControllerExpandVolume(_ context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	klog.Infof("Expanding volume %v to %v bytes.", req.VolumeId, req.CapacityRange.RequiredBytes)
+
+	conn, err := c.ovirtClient.GetConnection()
+	if err != nil {
+                msg := fmt.Sprintf("Failed to get ovirt client connection")
+		klog.Errorf(msg)
+		return nil, status.Error(codes.Unavailable, msg)
+	}
+
+	// find diskAttachment and diskAttachmentService by DiskId
+	diskAttachment, diskAttachmentService, _ := diskAttachmentByDisk(conn, req.VolumeId)
+	if diskAttachment == nil || diskAttachmentService == nil {
+                msg := fmt.Sprintf("Unable to find disk attachment for volume %s.", req.VolumeId)
+		klog.Errorf(msg)
+		return nil, status.Error(codes.NotFound, msg)
+	}
+
+	diskAttachment.MustDisk().SetProvisionedSize(req.CapacityRange.RequiredBytes)
+	_, err = diskAttachmentService.Update().DiskAttachment(diskAttachment).Send()
+	if err != nil {
+		return nil, status.Errorf(codes.ResourceExhausted, "Failed to expand volume %s: %v", req.VolumeId, err)
+	}
+
+	klog.Infof("Expanded Disk %v to %v bytes", req.VolumeId, req.CapacityRange.RequiredBytes)
+	return &csi.ControllerExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes, NodeExpansionRequired: true}, nil
 }
 
 //ControllerGetCapabilities

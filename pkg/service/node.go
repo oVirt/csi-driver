@@ -8,7 +8,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"fmt"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -25,6 +28,7 @@ type NodeService struct {
 
 var NodeCaps = []csi.NodeServiceCapability_RPC_Type{
 	csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+	csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 }
 
 func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, error) {
@@ -126,8 +130,37 @@ func (n *NodeService) NodeGetVolumeStats(context.Context, *csi.NodeGetVolumeStat
 	panic("implement me")
 }
 
-func (n *NodeService) NodeExpandVolume(context.Context, *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	panic("implement me")
+func (n *NodeService) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	klog.Infof("Resizing filesystem mounted on %s", req.VolumePath)
+	fsType := req.VolumeCapability.GetMount().FsType
+	klog.Infof("fstype: %s", fsType)
+
+	var resizeCmd string
+	if strings.HasPrefix(fsType, "ext") {
+		resizeCmd = "resize2fs"
+	}
+	if strings.HasPrefix(fsType, "xfs") {
+		resizeCmd = "xfs_growfs"
+	}
+
+	if resizeCmd == "" {
+		return nil, status.Error(codes.InvalidArgument, "fsType is neither xfs or ext[234]")
+	}
+
+	device, err := getDeviceByMountPoint(req.VolumePath)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(resizeCmd, device)
+	err = cmd.Run()
+	exitError, incompleteCmd := err.(*exec.ExitError)
+	if err != nil && incompleteCmd {
+		return nil, status.Error(codes.Internal, err.Error() + " resize failed with " + string(exitError.Error()))
+	}
+
+	klog.Infof("Resized %s filesystem on device %s)", fsType, device)
+	return &csi.NodeExpandVolumeResponse{}, nil
 }
 
 func (n *NodeService) NodeGetInfo(context.Context, *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
@@ -246,4 +279,17 @@ func isMountpoint(mountDir string) bool {
 		return false
 	}
 	return true
+}
+
+func getDeviceByMountPoint(mp string) (string, error) {
+	out, err := exec.Command("findmnt", "-nfc", mp).Output()
+	if err != nil {
+		return "", fmt.Errorf("Error: %v\n", err)
+	}
+
+	s := strings.Fields(string(out))
+	if len(s) < 2 {
+		return "", fmt.Errorf("Could not parse command output: >%s<", string(out))
+	}
+	return s[1], nil
 }
