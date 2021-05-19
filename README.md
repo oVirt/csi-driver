@@ -1,4 +1,6 @@
-# oVirt CSI driver
+# This repository is inactive, please refer to: https://github.com/openshift/ovirt-csi-driver
+
+## oVirt CSI driver
 
 [![Docker Repository on Quay](https://quay.io/repository/ovirt/csi-driver/status "Docker Repository on Quay")](https://quay.io/repository/ovirt/csi-driver)
 
