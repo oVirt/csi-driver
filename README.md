@@ -2,8 +2,6 @@
 
 ## oVirt CSI driver
 
-[![Docker Repository on Quay](https://quay.io/repository/ovirt/csi-driver/status "Docker Repository on Quay")](https://quay.io/repository/ovirt/csi-driver)
-
 Implementation of a CSI driver for oVirt.
 
 This work is a continuation of the work done in github.com/ovirt/ovirt-openshift-extensions, 
@@ -77,7 +75,7 @@ spec:
   containers:
   - image: busybox
     name: testpodwithcsi
-    command: ["sh", "-c", "while true; do ls -la /opt; echo this file system was made availble using ovirt csi driver; sleep 1m; done"]
+    command: ["sh", "-c", "while true; do ls -la /opt; echo this file system was made availble using ovirt flexdriver; sleep 1m; done"]
     imagePullPolicy: Always
     volumeMounts:
     - name: pv0002
@@ -98,7 +96,7 @@ Kubernetes:
   - dev/test
 
 # OpenShift vs Kubernetes
-- credential requests (CredentialRequest) require the openshift cloud credentials operator in order to provision. You will need to either deploy the operator and create the ovirt-credentials secret in the kube-system namespace, or provision the ovirt-credentials secret yourself into the ovirt-csi-driver namespace.
+- Credential requests require the openshift cloud credentials operator in order to provision. You will need to either deploy the operator and create the ovirt-credentials secret in the kube-system namespace, or provision the ovirt-credentials secret yourself into the ovirt-csi-driver namespace.
 
 # Troubleshooting
 

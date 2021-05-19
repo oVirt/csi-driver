@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/utils/mount"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -39,6 +41,11 @@ func baseDevicePathByInterface(diskInterface ovirtsdk.DiskInterface) (string, er
 
 func (n *NodeService) NodeStageVolume(_ context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging volume %s with %+v", req.VolumeId, req)
+	if req.VolumeCapability.GetBlock() != nil {
+		klog.Infof("Volume %s is a block volume, no need for staging", req.VolumeId)
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	conn, err := n.ovirtClient.GetConnection()
 	if err != nil {
 		klog.Errorf("Failed to get ovirt client connection")
@@ -91,8 +98,12 @@ func (n *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, err
 	}
 
+	if req.VolumeCapability.GetBlock() != nil {
+		return n.publishBlockVolume(req, device)
+	}
+
 	targetPath := req.GetTargetPath()
-	err = os.MkdirAll(targetPath, 0750)
+	err = os.MkdirAll(targetPath, 0644)
 	if err != nil {
 		return nil, errors.New(err.Error())
 	}
@@ -120,6 +131,29 @@ func (n *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	}
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
+}
+
+func (n *NodeService) publishBlockVolume(req *csi.NodePublishVolumeRequest, device string) (*csi.NodePublishVolumeResponse, error) {
+	klog.Infof("Publishing block volume, device: %s, req: %+v", device, req)
+	file, err := os.OpenFile(req.TargetPath, os.O_CREATE, os.FileMode(0644))
+	defer file.Close()
+	if err != nil {
+		if !os.IsExist(err) {
+			return nil, status.Errorf(codes.Internal, "Failed to create targetPath %s, err: %v", req.TargetPath, err)
+		}
+	}
+
+	mounter := mount.New("")
+	err = mounter.Mount(device, req.TargetPath, "", []string{"bind"})
+	if err != nil {
+		if removeErr := os.Remove(req.TargetPath); removeErr != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to remove mount target %v, err: %v, mount error: %v", req.TargetPath, removeErr, err)
+		}
+
+		return nil, status.Errorf(codes.Internal, "Failed to mount %v at %v, err: %v", device, req.TargetPath, err)
+	}
+
+	return &csi.NodePublishVolumeResponse{}, nil
 }
 
 func (n *NodeService) NodeGetVolumeStats(context.Context, *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
@@ -218,18 +252,26 @@ func getDeviceInfo(device string) (string, error) {
 }
 
 func makeFS(device string, fsType string) error {
-	// caution, use -F to force creating the filesystem if it doesn't exit. May not be portable for fs other
-	// than ext family
+	// caution, use force flag when creating the filesystem if it doesn't exit.
 	klog.Infof("Mounting device %s, with FS %s", device, fsType)
-	var force string
-	if strings.HasPrefix(fsType, "ext") {
-		force = "-F"
-	}
 
-	cmd := exec.Command("mkfs", force, "-t", fsType, device)
+	var cmd *exec.Cmd
+	var stdout, stderr bytes.Buffer
+	if strings.HasPrefix(fsType, "ext") {
+		cmd = exec.Command("mkfs", "-F", "-t", fsType, device)
+	} else if strings.HasPrefix(fsType, "xfs") {
+		cmd = exec.Command("mkfs", "-t", fsType, "-f", device)
+	} else {
+		return errors.New(fsType + " is not supported, only xfs and ext are supported")
+	}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
 	err := cmd.Run()
 	exitError, incompleteCmd := err.(*exec.ExitError)
 	if err != nil && incompleteCmd {
+		klog.Errorf("stdout: %s", string(stdout.Bytes()))
+		klog.Errorf("stderr: %s", string(stderr.Bytes()))
 		return errors.New(err.Error() + " mkfs failed with " + string(exitError.Error()))
 	}
 
