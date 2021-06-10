@@ -32,6 +32,7 @@ func newOvirtConnection() (*ovirtsdk.Connection, error) {
 		Username(ovirtConfig.Username).
 		Password(ovirtConfig.Password).
 		CAFile(ovirtConfig.CAFile).
+		CACert(ovirtConfig.CABundle).
 		Insecure(ovirtConfig.Insecure).
 		Build()
 	if err != nil {
@@ -65,6 +66,7 @@ type Config struct {
 	Username string `yaml:"ovirt_username"`
 	Password string `yaml:"ovirt_password"`
 	CAFile   string `yaml:"ovirt_cafile,omitempty"`
+	CABundle []byte `yaml:"ovirt_ca_bundle,omitempty"`
 	Insecure bool   `yaml:"ovirt_insecure,omitempty"`
 }
 
